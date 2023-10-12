@@ -1,0 +1,23 @@
+[package]
+name = "openbook-twap"
+version = "0.1.0"
+description = "Created with Anchor"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "openbook_twap"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = "^0.28.0"
+anchor-spl = "^0.28.0"
+openbook-v2 = { git = "https://github.com/openbook-dex/openbook-v2.git", features = ["cpi"] }
+#solana-program = "^0.14.12"
+solana-program = "~1.16.1"
