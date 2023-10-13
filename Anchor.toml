@@ -4,6 +4,10 @@ skip-lint = false
 [programs.localnet]
 openbook_twap = "EgYfg4KUAbXP4UfTrsauxvs75QFf28b3MVEV8qFUGBRh"
 
+[[test.genesis]]
+address = "8qkavBpvoHVYkmPhu6QRpXRX39Kcop9uMXvZorBAz43o"
+program = "./tests/fixtures/openbook_v2.so"
+
 [registry]
 url = "https://api.apr.dev"
 
