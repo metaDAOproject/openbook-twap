@@ -62,6 +62,13 @@ describe("openbook-twap", () => {
       9
     );
 
+    let marketKP = Keypair.generate();
+
+    let [twapMarket] = PublicKey.findProgramAddressSync(
+      [anchor.utils.bytes.utf8.encode("twap_market"), marketKP.publicKey.toBuffer()],
+      openbookTwap.programId
+    );
+
     let market = await openbook.createMarket(
       provider.wallet.payer,
       "MARKET0",
@@ -74,14 +81,11 @@ describe("openbook-twap", () => {
       new BN(0),
       null,
       null,
+      twapMarket,
       null,
       null,
-      null
-    );
-
-    let [twapMarket] = PublicKey.findProgramAddressSync(
-      [anchor.utils.bytes.utf8.encode("twap_market"), market.toBuffer()],
-      openbookTwap.programId
+      undefined,
+      marketKP
     );
 
     await openbookTwap.methods.createTwapMarket()
