@@ -163,11 +163,10 @@ describe("openbook-twap", () => {
         eventHeap: storedMarket.eventHeap,
         market: market,
         openOrdersAccount: openOrders,
-        oracleA: null,
-        oracleB: null,
         userTokenAccount: quoteAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
-        openOrdersAdmin: twapMarket,
+        twapMarket,
+        openbookProgram: OPENBOOK_PROGRAM_ID,
       })
       .rpc();
 
