@@ -5,7 +5,7 @@ skip-lint = false
 openbook_twap = "EgYfg4KUAbXP4UfTrsauxvs75QFf28b3MVEV8qFUGBRh"
 
 [[test.genesis]]
-address = "8qkavBpvoHVYkmPhu6QRpXRX39Kcop9uMXvZorBAz43o"
+address = "opnbkNkqux64GppQhwbyEVc3axhssFhVYuwar8rDHCu"
 program = "./tests/fixtures/openbook_v2.so"
 
 [registry]
