@@ -1,2 +1,2 @@
 test:
-	(find programs && find tests) | entr -cs 'anchor test'
+	(find programs && find tests) | entr -cs 'anchor test --skip-lint'

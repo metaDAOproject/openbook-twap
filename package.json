@@ -4,6 +4,7 @@
         "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
     },
     "dependencies": {
+        "@blockworks-foundation/mango-client": "^3.6.20",
         "@coral-xyz/anchor": "^0.28.0",
         "@openbook-dex/openbook-v2": "^0.0.6",
         "@solana/spl-token": "^0.3.8"
