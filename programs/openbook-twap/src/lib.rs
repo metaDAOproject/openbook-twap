@@ -27,6 +27,31 @@ declare_id!("EgYfg4KUAbXP4UfTrsauxvs75QFf28b3MVEV8qFUGBRh");
 pub struct TWAPMarket {
     pub market: Pubkey,
     pub pda_bump: u8,
+    pub twap_oracle: TWAPOracle,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
+pub struct TWAPOracle {
+    pub last_updated_slot: u64,
+    pub last_observation: u64,
+    pub observation_aggregator: u128,
+    /// The most, in basis points, an observation can change per update.
+    /// For example, if it is 100 (1%), then the new observation can be between
+    /// last_observation * 0.99 and last_observation * 1.01
+    pub max_observation_change_per_update_bps: u16,
+    pub _padding: [u8; 6],
+}
+
+impl Default for TWAPOracle {
+    fn default() -> Self {
+        Self {
+            last_updated_slot: 0,
+            last_observation: 0,
+            observation_aggregator: 0,
+            max_observation_change_per_update_bps: 100,
+            _padding: Default::default(),
+        }
+    }
 }
 
 #[derive(Accounts)]
@@ -171,20 +196,33 @@ pub mod openbook_twap {
         require!(market.time_expiry == 0, OpenBookTWAPError::NonZeroExpiry);
         require!(
             market.oracle_a.is_none(),
-            OpenBookTWAPError::MarketHasOracles
+            OpenBookTWAPError::NoOracles
         );
         require!(
             market.oracle_b.is_none(),
-            OpenBookTWAPError::MarketHasOracles
+            OpenBookTWAPError::NoOracles
         );
 
         twap_market.pda_bump = *ctx.bumps.get("twap_market").unwrap();
         twap_market.market = ctx.accounts.market.key();
+        twap_market.twap_oracle = TWAPOracle::default();
 
         Ok(())
     }
 
     pub fn place_order(ctx: Context<PlaceOrder>, place_order_args: PlaceOrderArgs) -> Result<()> {
+        let bids = ctx.accounts.bids.load()?;
+        let asks = ctx.accounts.asks.load()?;
+
+        let clock = Clock::get()?;
+
+        let unix_ts: u64 = clock.unix_timestamp.try_into().unwrap();
+        let best_bid = bids.best_price(unix_ts, None);
+        let best_ask = asks.best_price(unix_ts, None);
+
+        drop(bids);
+        drop(asks);
+
         let market_key = ctx.accounts.market.key();
         let twap_market_seeds = &[b"twap_market", market_key.as_ref(), &[ctx.accounts.twap_market.pda_bump]];
         let signer = &[&twap_market_seeds[..]];
@@ -224,6 +262,6 @@ pub enum OpenBookTWAPError {
     InvalidCloseMarketAdmin,
     #[msg("Market must not expire (have `time_expiry` == 0)")]
     NonZeroExpiry,
-    #[msg("Market must have no oracles")]
-    MarketHasOracles,
+    #[msg("Oracle-pegged trades mess up the TWAP so oracles and oracle-pegged trades aren't allowed")]
+    NoOracles,
 }
