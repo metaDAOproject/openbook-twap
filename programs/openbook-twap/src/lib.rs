@@ -48,8 +48,12 @@ pub struct TWAPOracle {
 
 impl Default for TWAPOracle {
     fn default() -> Self {
+        // Get the current slot at TWAPOracle initialization - if this fails we'll load the default clock
+        // Since the default Clock.slot is 0 (because slots are expressed as u64)
+        // This will give us 0 as the slot which we had anyways
+        let clock = Clock::get().unwrap_or(Clock::default());
         Self {
-            last_updated_slot: 0,
+            last_updated_slot: clock.slot,
             last_observed_slot: 0,
             last_observation: 0,
             observation_aggregator: 0,
@@ -78,10 +82,12 @@ pub struct CreateTWAPMarket<'info> {
 #[derive(Accounts)]
 pub struct PlaceOrder<'info> {
     pub signer: Signer<'info>,
+    /// CHECK:
     #[account(mut)]
     pub open_orders_account: UncheckedAccount<'info>,
     #[account(mut)]
     pub twap_market: Account<'info, TWAPMarket>,
+    /// CHECK: 
     #[account(mut)]
     pub user_token_account: UncheckedAccount<'info>,
     #[account(mut)]
@@ -90,10 +96,13 @@ pub struct PlaceOrder<'info> {
     pub bids: AccountLoader<'info, BookSide>,
     #[account(mut)]
     pub asks: AccountLoader<'info, BookSide>,
+    /// CHECK:
     #[account(mut)]
     pub event_heap: UncheckedAccount<'info>,
+    /// CHECK:
     #[account(mut)]
     pub market_vault: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
     pub token_program: UncheckedAccount<'info>,
     pub openbook_program: Program<'info, OpenbookV2>,
 }
