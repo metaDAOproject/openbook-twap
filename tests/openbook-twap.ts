@@ -118,7 +118,7 @@ describe("openbook-twap", () => {
       twapMarket,
       null,
       twapMarket,
-      undefined,
+      { confFilter: 0.1, maxStalenessSlots: 100 },
       marketKP
     );
 
@@ -174,9 +174,8 @@ describe("openbook-twap", () => {
       orderType: { limit: {} },
       expiryTimestamp: new BN(0),
       selfTradeBehavior: { decrementTake: {} },
-      limit: 10,
+      limit: 255,
     };
-
 
     //await openbookProgram.methods
     //  .placeOrder(placeOrderArgs)
@@ -224,9 +223,6 @@ describe("openbook-twap", () => {
     //console.log(await openbook.getLeafNodes(await openbook.getBookSide(storedMarket.bids)));
 
     //console.log(await getAccount(connection, quoteAccount));
-
-
-
 
 
     //public async placeOrder(
