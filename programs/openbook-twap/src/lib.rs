@@ -80,6 +80,7 @@ pub struct PlaceOrder<'info> {
     pub signer: Signer<'info>,
     #[account(mut)]
     pub open_orders_account: UncheckedAccount<'info>,
+    #[account(mut)]
     pub twap_market: Account<'info, TWAPMarket>,
     #[account(mut)]
     pub user_token_account: UncheckedAccount<'info>,

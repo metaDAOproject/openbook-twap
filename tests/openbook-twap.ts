@@ -6,7 +6,9 @@ import {
   BooksideSpace,
   EventHeapSpace,
   PlaceOrderArgs,
-  Side
+  Side,
+  OrderType,
+  SelfTradeBehavior
 } from "@openbook-dex/openbook-v2";
 
 import { expect, assert } from "chai";
@@ -126,8 +128,6 @@ describe("openbook-twap", () => {
       { confFilter: 0.1, maxStalenessSlots: 100 },
       marketKP
     );
-
-    //
     await openbookTwap.methods.createTwapMarket()
       .accounts({
         market,
@@ -138,23 +138,6 @@ describe("openbook-twap", () => {
     let storedTwapMarket = await openbookTwap.account.twapMarket.fetch(twapMarket);
 
     assert.ok(storedTwapMarket.market.equals(market));
-
-    //let market = await openbook.createMarket(
-    //  provider.wallet.payer,
-    //  "META/USDC",
-    //  USDC,
-    //  META,
-    //  new BN(100),
-    //  new BN(1e9),
-    //  new BN(0),
-    //  new BN(0),
-    //  new BN(0),
-    //  null,
-    //  null,
-    //  null,
-    //  null,
-    //  null,
-    //);
 
     let storedMarket = await openbook.getMarket(market);
     let openOrders = await openbook.createOpenOrders(market, new BN(1));
@@ -169,39 +152,69 @@ describe("openbook-twap", () => {
       new BN(USDC_AMOUNT),
     );
 
-    let placeOrderArgs: PlaceOrderArgs = {
+    let buyArgs: PlaceOrderArgs = {
       side: Side.Bid,
       priceLots: new BN(10_000), // 1 META for 1 USDC
       maxBaseLots: new BN(1),
       maxQuoteLotsIncludingFees: new BN(10_000),
       clientOrderId: new BN(1),
-      orderType: { limit: {} },
+      orderType: OrderType.Limit,
       expiryTimestamp: new BN(0),
-      selfTradeBehavior: { decrementTake: {} },
+      selfTradeBehavior: SelfTradeBehavior.DecrementTake,
       limit: 255,
     };
-    //await openbook.placeOrder(openOrders, market, storedMarket, usdcAccount, null, placeOrderArgs);
+    let sellArgs: PlaceOrderArgs = {
+      side: Side.Ask,
+      priceLots: new BN(12_000), // 1 META for 1.2 USDC
+      maxBaseLots: new BN(1),
+      maxQuoteLotsIncludingFees: new BN(12_000),
+      clientOrderId: new BN(2),
+      orderType: OrderType.Limit,
+      expiryTimestamp: new BN(0),
+      selfTradeBehavior: SelfTradeBehavior.DecrementTake,
+      limit: 255,
+    };
 
-    ////console.log(await openbook.getOpenOrders(openOrders));
+    for (let i = 0; i < 5; i++) {
+      await openbookTwap.methods
+        .placeOrder(buyArgs)
+        .accounts({
+          signer: payer.publicKey,
+          asks: storedMarket.asks,
+          bids: storedMarket.bids,
+          marketVault: storedMarket.marketQuoteVault,
+          eventHeap: storedMarket.eventHeap,
+          market,
+          openOrdersAccount: openOrders,
+          userTokenAccount: usdcAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          twapMarket,
+          openbookProgram: OPENBOOK_PROGRAM_ID,
+        })
+        .rpc();
 
-    await openbookTwap.methods
-      .placeOrder(placeOrderArgs)
-      .accounts({
-        signer: payer.publicKey,
-        asks: storedMarket.asks,
-        bids: storedMarket.bids,
-        marketVault: storedMarket.marketQuoteVault,
-        eventHeap: storedMarket.eventHeap,
-        market: market,
-        openOrdersAccount: openOrders,
-        userTokenAccount: usdcAccount,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        twapMarket,
-        openbookProgram: OPENBOOK_PROGRAM_ID,
-      })
-      .rpc();
+      await openbookTwap.methods
+        .placeOrder(sellArgs)
+        .accounts({
+          signer: payer.publicKey,
+          asks: storedMarket.asks,
+          bids: storedMarket.bids,
+          marketVault: storedMarket.marketBaseVault,
+          eventHeap: storedMarket.eventHeap,
+          market,
+          openOrdersAccount: openOrders,
+          userTokenAccount: metaAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          twapMarket,
+          openbookProgram: OPENBOOK_PROGRAM_ID,
+        })
+        .rpc();
+    }
 
     console.log((await openbook.getOpenOrders(openOrders)).position);
+
+    let storedTwapMarket2= await openbookTwap.account.twapMarket.fetch(twapMarket);
+    console.log(storedTwapMarket2);
 
     //console.log(await openbook.getBookSide(storedMarket.bids));
 
