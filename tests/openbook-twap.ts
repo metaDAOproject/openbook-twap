@@ -5,6 +5,8 @@ import {
   OpenBookV2Client,
   BooksideSpace,
   EventHeapSpace,
+  PlaceOrderArgs,
+  Side
 } from "@openbook-dex/openbook-v2";
 
 import { expect, assert } from "chai";
@@ -33,6 +35,9 @@ const OPENBOOK_PROGRAM_ID = new PublicKey(
 
 export type OpenBookProgram = Program<OpenBookIDL>;
 
+const META_AMOUNT = 100n * 1_000_000_000n;
+const USDC_AMOUNT = 1000n * 1_000_000n;
+
 describe("openbook-twap", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
@@ -49,14 +54,14 @@ describe("openbook-twap", () => {
 
   it("Is initialized!", async () => {
     let mintAuthority = Keypair.generate();
-    let baseMint = await createMint(
+    let META = await createMint(
       connection,
       provider.wallet.payer,
       mintAuthority.publicKey,
       null,
       6
     );
-    let quoteMint = await createMint(
+    let USDC = await createMint(
       connection,
       provider.wallet.payer,
       mintAuthority.publicKey,
@@ -64,36 +69,36 @@ describe("openbook-twap", () => {
       6
     );
 
-    let quoteAccount = await createAccount(
+    let usdcAccount = await createAccount(
       connection,
       provider.wallet.payer,
-      quoteMint,
+      USDC,
       provider.wallet.payer.publicKey,
     );
 
-    let baseAccount = await createAccount(
+    let metaAccount = await createAccount(
       connection,
       provider.wallet.payer,
-      baseMint,
+      META,
       provider.wallet.payer.publicKey,
     );
 
     await mintTo(
       connection,
       provider.wallet.payer,
-      quoteMint,
-      quoteAccount,
+      META,
+      metaAccount,
       mintAuthority,
-      1_000_000_000_000_000n
+      META_AMOUNT
     );
 
     await mintTo(
       connection,
       provider.wallet.payer,
-      baseMint,
-      baseAccount,
+      USDC,
+      usdcAccount,
       mintAuthority,
-      1_000_000_000_000_000n
+      USDC_AMOUNT
     );
 
     let marketKP = Keypair.generate();
@@ -105,11 +110,11 @@ describe("openbook-twap", () => {
 
     let market = await openbook.createMarket(
       provider.wallet.payer,
-      "MARKET0",
-      quoteMint,
-      baseMint,
-      new BN(1),
-      new BN(1),
+      "META/USDC",
+      USDC,
+      META,
+      new BN(100),
+      new BN(1e9),
       new BN(0),
       new BN(0),
       new BN(0),
@@ -122,7 +127,7 @@ describe("openbook-twap", () => {
       marketKP
     );
 
-    
+    //
     await openbookTwap.methods.createTwapMarket()
       .accounts({
         market,
@@ -136,13 +141,13 @@ describe("openbook-twap", () => {
 
     //let market = await openbook.createMarket(
     //  provider.wallet.payer,
-    //  "MARKET1",
-    //  quoteMint,
-    //  baseMint,
-    //  new BN(10),
+    //  "META/USDC",
+    //  USDC,
+    //  META,
     //  new BN(100),
-    //  new BN(-200),
-    //  new BN(400),
+    //  new BN(1e9),
+    //  new BN(0),
+    //  new BN(0),
     //  new BN(0),
     //  null,
     //  null,
@@ -151,7 +156,6 @@ describe("openbook-twap", () => {
     //  null,
     //);
 
-
     let storedMarket = await openbook.getMarket(market);
     let openOrders = await openbook.createOpenOrders(market, new BN(1));
 
@@ -159,46 +163,27 @@ describe("openbook-twap", () => {
       openOrders,
       await openbook.getOpenOrders(openOrders),
       storedMarket,
-      baseAccount,
-      quoteAccount,
-      new BN(1_000_000_000),
-      new BN(1_000_000_000),
+      metaAccount,
+      usdcAccount,
+      new BN(META_AMOUNT),
+      new BN(USDC_AMOUNT),
     );
 
-    let placeOrderArgs = {
-      side: { bid: {} },
-      priceLots: I80F48.fromNumber(1000).toTwos(),
+    let placeOrderArgs: PlaceOrderArgs = {
+      side: Side.Bid,
+      priceLots: new BN(10_000), // 1 META for 1 USDC
       maxBaseLots: new BN(1),
-      maxQuoteLotsIncludingFees: new BN(10000),
-      clientOrderId: new BN(0),
+      maxQuoteLotsIncludingFees: new BN(10_000),
+      clientOrderId: new BN(1),
       orderType: { limit: {} },
       expiryTimestamp: new BN(0),
       selfTradeBehavior: { decrementTake: {} },
       limit: 255,
     };
+    //await openbook.placeOrder(openOrders, market, storedMarket, usdcAccount, null, placeOrderArgs);
 
-    //await openbookProgram.methods
-    //  .placeOrder(placeOrderArgs)
-    //  .accounts({
-    //    signer: payer.publicKey,
-    //    asks: storedMarket.asks,
-    //    bids: storedMarket.bids,
-    //    marketVault: storedMarket.marketQuoteVault,
-    //    eventHeap: storedMarket.eventHeap,
-    //    market: market,
-    //    oracleA: null,
-    //    oracleB: null,
-    //    openOrdersAdmin: null,
-    //    openOrdersAccount: openOrders,
-    //    userTokenAccount: quoteAccount,
-    //    tokenProgram: TOKEN_PROGRAM_ID,
-    //  })
-    //  .rpc();
+    ////console.log(await openbook.getOpenOrders(openOrders));
 
-    //console.log(await openbook.getOpenOrders(openOrders));
-
-    //await openbook.placeOrder(openOrders, market, storedMarket, quoteAccount, null, placeOrderArgs);
-    //await openbookTwapClient.placeOrder(openOrders, nonTwapMarket, storedMarket, quoteAccount, twapMarket, placeOrderArgs);
     await openbookTwap.methods
       .placeOrder(placeOrderArgs)
       .accounts({
@@ -209,7 +194,7 @@ describe("openbook-twap", () => {
         eventHeap: storedMarket.eventHeap,
         market: market,
         openOrdersAccount: openOrders,
-        userTokenAccount: quoteAccount,
+        userTokenAccount: usdcAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
         twapMarket,
         openbookProgram: OPENBOOK_PROGRAM_ID,
@@ -223,16 +208,5 @@ describe("openbook-twap", () => {
     //console.log(await openbook.getLeafNodes(await openbook.getBookSide(storedMarket.bids)));
 
     //console.log(await getAccount(connection, quoteAccount));
-
-
-    //public async placeOrder(
-    //  openOrdersPublicKey: PublicKey,
-    //  marketPublicKey: PublicKey,
-    //  market: MarketAccount,
-    //  userTokenAccount: PublicKey,
-    //  openOrdersAdmin: PublicKey | null,
-    //  args: PlaceOrderArgs,
-    //  openOrdersDelegate?: Keypair,
-    //): Promise<TransactionSignature> {
   });
 });
