@@ -63,6 +63,32 @@ impl Default for TWAPOracle {
     }
 }
 
+impl TWAPOracle {
+    pub fn update_oracle(&mut self, spot_price: u64, current_slot: u64) {
+        let last_obs = self.last_observation;
+
+        let obs = if spot_price > last_obs {
+            let max_obs = last_obs
+                .saturating_mul((MAX_BPS + self.max_observation_change_per_update_bps) as u64)
+                .saturating_div(MAX_BPS as u64)
+                .saturating_add(1);        
+
+            std::cmp::min(spot_price, max_obs)
+        } else {
+            let min_obs = last_obs
+                .saturating_mul((MAX_BPS - self.max_observation_change_per_update_bps) as u64)
+                .saturating_div(MAX_BPS as u64);
+            
+            std::cmp::max(spot_price, min_obs)
+        };
+
+        let weighted_observation = obs * (current_slot - self.last_updated_slot);
+
+        self.last_updated_slot = current_slot;
+        self.last_observation = obs;
+        self.observation_aggregator += weighted_observation as u128;
+    }
+}
 #[derive(Accounts)]
 pub struct CreateTWAPMarket<'info> {
     pub market: AccountLoader<'info, Market>,
@@ -82,12 +108,12 @@ pub struct CreateTWAPMarket<'info> {
 #[derive(Accounts)]
 pub struct PlaceOrder<'info> {
     pub signer: Signer<'info>,
-    /// CHECK:
+    /// CHECK: verified in CPI
     #[account(mut)]
     pub open_orders_account: UncheckedAccount<'info>,
     #[account(mut)]
     pub twap_market: Account<'info, TWAPMarket>,
-    /// CHECK: 
+    /// CHECK: verified in CPI
     #[account(mut)]
     pub user_token_account: UncheckedAccount<'info>,
     #[account(mut)]
@@ -96,10 +122,10 @@ pub struct PlaceOrder<'info> {
     pub bids: AccountLoader<'info, BookSide>,
     #[account(mut)]
     pub asks: AccountLoader<'info, BookSide>,
-    /// CHECK:
+    /// CHECK: verified in CPI
     #[account(mut)]
     pub event_heap: UncheckedAccount<'info>,
-    /// CHECK:
+    /// CHECK: verified in CPI
     #[account(mut)]
     pub market_vault: UncheckedAccount<'info>,
     /// CHECK: verified in CPI
@@ -242,34 +268,7 @@ pub mod openbook_twap {
             if let (Some(best_bid), Some(best_ask)) = (best_bid, best_ask) {
                 // we use average_ceil because (best_bid + best_ask) / 2 can overflow
                 let spot_price = best_bid.average_ceil(&best_ask) as u64; 
-                //let spot_price = (best_bid as u128 + best_ask as u128) / 2; // no overflow possible
-                let last_observation = oracle.last_observation;                                                            
-                                                                           
-                let observation = if oracle.last_updated_slot == 0 {
-                    spot_price
-                } else if spot_price > last_observation {
-                    // always round up 1 because of an edge case where the price
-                    // drops super low (e.g., 100), and can't climb back up because
-                    // 1.001 * 100 is still 100
-                    let max_observation = last_observation
-                        .saturating_mul((MAX_BPS + oracle.max_observation_change_per_update_bps) as u64)
-                        .saturating_div(MAX_BPS as u64)
-                        .saturating_add(1);
-
-                    std::cmp::min(spot_price, max_observation)
-                } else {
-                    let min_observation = last_observation
-                        .saturating_mul((MAX_BPS - oracle.max_observation_change_per_update_bps) as u64)
-                        .saturating_div(MAX_BPS as u64);
-
-                    std::cmp::max(spot_price, min_observation)
-                };
-
-                let weighted_observation = observation * (clock.slot - oracle.last_updated_slot);
-
-                oracle.last_updated_slot = clock.slot;
-                oracle.last_observation = observation;
-                oracle.observation_aggregator += weighted_observation as u128;
+                oracle.update_oracle(spot_price, clock.slot);
             }
         }
 
