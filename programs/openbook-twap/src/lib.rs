@@ -364,6 +364,51 @@ pub mod openbook_twap {
 
         Ok(())
     }
+
+    pub fn edit_order<'info>(
+        ctx: Context<'_, '_, '_, 'info, PlaceOrder<'info>>,
+        client_order_id: u64,
+        expected_cancel_size: i64,
+        place_order: PlaceOrderArgs
+    ) -> Result<()> {
+        let oracle = &mut ctx.accounts.twap_market.twap_oracle;
+
+        let bids = ctx.accounts.bids.load()?;
+        let asks = ctx.accounts.asks.load()?;
+
+        oracle.update_oracle(bids, asks);
+
+        let market_key = ctx.accounts.market.key();
+
+        let seeds = TWAPMarket::get_twap_market_seeds(&market_key, &ctx.accounts.twap_market.pda_bump);
+        let signer_seeds = &[&seeds[..]];
+
+        openbook_v2::cpi::edit_order(
+            CpiContext::new_with_signer(
+                ctx.accounts.openbook_program.to_account_info(),
+                openbook_v2::cpi::accounts::PlaceOrder {
+                    signer: ctx.accounts.signer.to_account_info(),
+                    open_orders_account: ctx.accounts.open_orders_account.to_account_info(),
+                    open_orders_admin: Some(ctx.accounts.twap_market.to_account_info()),
+                    user_token_account: ctx.accounts.user_token_account.to_account_info(),
+                    market: ctx.accounts.market.to_account_info(),
+                    bids: ctx.accounts.bids.to_account_info(),
+                    asks: ctx.accounts.asks.to_account_info(),
+                    event_heap: ctx.accounts.event_heap.to_account_info(),
+                    market_vault: ctx.accounts.market_vault.to_account_info(),
+                    oracle_a: None,
+                    oracle_b: None,
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                },
+                signer_seeds,
+            ), 
+            client_order_id, 
+            expected_cancel_size, 
+            place_order.into()
+        )?;
+
+        Ok(())
+    }
 }
 
 #[error_code]
