@@ -32,7 +32,7 @@ import {
 } from "@solana/spl-token";
 
 const OPENBOOK_PROGRAM_ID = new PublicKey(
-  "opnbkNkqux64GppQhwbyEVc3axhssFhVYuwar8rDHCu"
+  "opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb"
 );
 
 export type OpenBookProgram = Program<OpenBookIDL>;
@@ -47,8 +47,7 @@ describe("openbook-twap", () => {
   const payer = provider.wallet.payer;
 
   const openbookTwap = anchor.workspace.OpenbookTwap as Program<OpenbookTwap>;
-  const openbook = new OpenBookV2Client(OPENBOOK_PROGRAM_ID, provider);
-  const openbookTwapClient = new OpenBookV2Client(openbookTwap.programId, provider);
+  const openbook = new OpenBookV2Client(provider);
   const openbookProgram = new Program(
     IDL,
     OPENBOOK_PROGRAM_ID
@@ -140,7 +139,7 @@ describe("openbook-twap", () => {
     assert.ok(storedTwapMarket.market.equals(market));
 
     let storedMarket = await openbook.getMarket(market);
-    let openOrders = await openbook.createOpenOrders(market, new BN(1));
+    let openOrders = await openbook.createOpenOrders(market, new BN(1), 'oo');
 
     await openbook.deposit(
       openOrders,
@@ -215,11 +214,5 @@ describe("openbook-twap", () => {
 
     let storedTwapMarket2= await openbookTwap.account.twapMarket.fetch(twapMarket);
     console.log(storedTwapMarket2);
-
-    //console.log(await openbook.getBookSide(storedMarket.bids));
-
-    //console.log(await openbook.getLeafNodes(await openbook.getBookSide(storedMarket.bids)));
-
-    //console.log(await getAccount(connection, quoteAccount));
   });
 });
