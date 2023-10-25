@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use openbook_v2::cpi;
 use openbook_v2::program::OpenbookV2;
 use openbook_v2::state::{BookSide, Market};
 use num::integer::Average;
@@ -279,7 +278,7 @@ pub mod openbook_twap {
         let signer = &[&twap_market_seeds[..]];
 
         let cpi_program = ctx.accounts.openbook_program.to_account_info();
-        let cpi_accs = cpi::accounts::PlaceOrder {
+        let cpi_accs = openbook_v2::cpi::accounts::PlaceOrder {
             signer: ctx.accounts.signer.to_account_info(),
             open_orders_account: ctx.accounts.open_orders_account.to_account_info(),
             open_orders_admin: Some(ctx.accounts.twap_market.to_account_info()),
