@@ -3,6 +3,7 @@ use openbook_v2::cpi;
 use openbook_v2::program::OpenbookV2;
 use openbook_v2::state::{BookSide, Market};
 use num::integer::Average;
+use std::cell::Ref;
 //use openbook_v2::PlaceOrderArgs;
 
 const MAX_BPS: u16 = 10_000;
@@ -64,31 +65,50 @@ impl Default for TWAPOracle {
 }
 
 impl TWAPOracle {
-    pub fn update_oracle(&mut self, spot_price: u64, current_slot: u64) {
-        let last_observation = self.last_observation;
+    pub fn update_oracle(&mut self, bids: Ref<'_, BookSide>, asks: Ref<'_, BookSide>) {
+        let clock = Clock::get().unwrap();
 
-        let observation = if spot_price > last_observation {
-            let max_observation = last_observation
-                .saturating_mul((MAX_BPS + self.max_observation_change_per_update_bps) as u64)
-                .saturating_div(MAX_BPS as u64)
-                .saturating_add(1);        
+        if self.last_observed_slot < clock.slot {
+            self.last_observed_slot = clock.slot;
 
-            std::cmp::min(spot_price, max_observation)
-        } else {
-            let min_observation = last_observation
-                .saturating_mul((MAX_BPS - self.max_observation_change_per_update_bps) as u64)
-                .saturating_div(MAX_BPS as u64);
-            
-            std::cmp::max(spot_price, min_observation)
-        };
+            let unix_ts: u64 = clock.unix_timestamp.try_into().unwrap();
 
-        let weighted_observation = observation * (current_slot - self.last_updated_slot);
+            let best_bid = bids.best_price(unix_ts, None);
+            let best_ask = asks.best_price(unix_ts, None);
 
-        self.last_updated_slot = current_slot;
-        self.last_observation = observation;
-        self.observation_aggregator += weighted_observation as u128;
+            if let (Some(best_bid), Some(best_ask)) = (best_bid, best_ask) {
+                // we use average_ceil because (best_bid + best_ask) / 2 can overflow
+                let spot_price = best_bid.average_ceil(&best_ask) as u64;
+
+                let last_observation = self.last_observation;
+
+                let observation = if spot_price > last_observation {
+                    let max_observation = last_observation
+                        .saturating_mul((MAX_BPS + self.max_observation_change_per_update_bps) as u64)
+                        .saturating_div(MAX_BPS as u64)
+                        .saturating_add(1);        
+
+                    std::cmp::min(spot_price, max_observation)
+                } else {
+                    let min_observation = last_observation
+                        .saturating_mul((MAX_BPS - self.max_observation_change_per_update_bps) as u64)
+                        .saturating_div(MAX_BPS as u64);
+                    
+                    std::cmp::max(spot_price, min_observation)
+                };
+
+                let weighted_observation = observation * (clock.slot - self.last_updated_slot);
+
+                self.last_updated_slot = clock.slot;
+                self.last_observation = observation;
+                self.observation_aggregator += weighted_observation as u128;
+
+
+            }
+        }
     }
 }
+
 
 
 #[derive(Accounts)]
@@ -255,24 +275,11 @@ pub mod openbook_twap {
 
     pub fn place_order(ctx: Context<PlaceOrder>, place_order_args: PlaceOrderArgs) -> Result<()> {
         let oracle = &mut ctx.accounts.twap_market.twap_oracle;
-        let clock = Clock::get()?;
 
-        if oracle.last_observed_slot < clock.slot {
-            oracle.last_observed_slot = clock.slot;
+        let bids = ctx.accounts.bids.load()?;
+        let asks = ctx.accounts.asks.load()?;
 
-            let bids = ctx.accounts.bids.load()?;
-            let asks = ctx.accounts.asks.load()?;
-
-            let unix_ts: u64 = clock.unix_timestamp.try_into().unwrap();
-            let best_bid = bids.best_price(unix_ts, None);
-            let best_ask = asks.best_price(unix_ts, None);
-
-            if let (Some(best_bid), Some(best_ask)) = (best_bid, best_ask) {
-                // we use average_ceil because (best_bid + best_ask) / 2 can overflow
-                let spot_price = best_bid.average_ceil(&best_ask) as u64; 
-                oracle.update_oracle(spot_price, clock.slot);
-            }
-        }
+        oracle.update_oracle(bids, asks);
 
         let market_key = ctx.accounts.market.key();
         let twap_market_seeds = &[b"twap_market", market_key.as_ref(), &[ctx.accounts.twap_market.pda_bump]];
