@@ -32,7 +32,7 @@ import {
 } from "@solana/spl-token";
 
 const OPENBOOK_PROGRAM_ID = new PublicKey(
-  "opnbkNkqux64GppQhwbyEVc3axhssFhVYuwar8rDHCu"
+  "opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb"
 );
 
 export type OpenBookProgram = Program<OpenBookIDL>;
@@ -47,8 +47,7 @@ describe("openbook-twap", () => {
   const payer = provider.wallet.payer;
 
   const openbookTwap = anchor.workspace.OpenbookTwap as Program<OpenbookTwap>;
-  const openbook = new OpenBookV2Client(OPENBOOK_PROGRAM_ID, provider);
-  const openbookTwapClient = new OpenBookV2Client(openbookTwap.programId, provider);
+  const openbook = new OpenBookV2Client(provider);
   const openbookProgram = new Program(
     IDL,
     OPENBOOK_PROGRAM_ID
@@ -63,6 +62,9 @@ describe("openbook-twap", () => {
       null,
       6
     );
+
+    console.log("Hello we are here 1")
+
     let USDC = await createMint(
       connection,
       provider.wallet.payer,
@@ -71,6 +73,9 @@ describe("openbook-twap", () => {
       6
     );
 
+    console.log("Hello we are here 2")
+
+
     let usdcAccount = await createAccount(
       connection,
       provider.wallet.payer,
@@ -78,12 +83,18 @@ describe("openbook-twap", () => {
       provider.wallet.payer.publicKey,
     );
 
+    console.log("Hello we are here 3")
+
+
     let metaAccount = await createAccount(
       connection,
       provider.wallet.payer,
       META,
       provider.wallet.payer.publicKey,
     );
+
+    console.log("Hello we are here 4")
+
 
     await mintTo(
       connection,
@@ -94,6 +105,9 @@ describe("openbook-twap", () => {
       META_AMOUNT
     );
 
+    console.log("Hello we are here 5")
+
+
     await mintTo(
       connection,
       provider.wallet.payer,
@@ -103,8 +117,10 @@ describe("openbook-twap", () => {
       USDC_AMOUNT
     );
 
+    console.log("Hello we are here 6")
+    
     let marketKP = Keypair.generate();
-
+    
     let [twapMarket] = PublicKey.findProgramAddressSync(
       [anchor.utils.bytes.utf8.encode("twap_market"), marketKP.publicKey.toBuffer()],
       openbookTwap.programId
@@ -128,6 +144,9 @@ describe("openbook-twap", () => {
       { confFilter: 0.1, maxStalenessSlots: 100 },
       marketKP
     );
+
+    console.log("Hello we are here 7")
+
     await openbookTwap.methods.createTwapMarket()
       .accounts({
         market,
@@ -135,12 +154,15 @@ describe("openbook-twap", () => {
       })
       .rpc();
 
+      console.log("Hello we are here 8")
+
+
     let storedTwapMarket = await openbookTwap.account.twapMarket.fetch(twapMarket);
 
     assert.ok(storedTwapMarket.market.equals(market));
 
     let storedMarket = await openbook.getMarket(market);
-    let openOrders = await openbook.createOpenOrders(market, new BN(1));
+    let openOrders = await openbook.createOpenOrders(market, new BN(1), 'oo');
 
     await openbook.deposit(
       openOrders,
@@ -151,6 +173,9 @@ describe("openbook-twap", () => {
       new BN(META_AMOUNT),
       new BN(USDC_AMOUNT),
     );
+
+    console.log("Hello we are here 9")
+
 
     let buyArgs: PlaceOrderArgs = {
       side: Side.Bid,
@@ -174,6 +199,8 @@ describe("openbook-twap", () => {
       selfTradeBehavior: SelfTradeBehavior.DecrementTake,
       limit: 255,
     };
+
+    console.log("Hello we are here 10")
 
     for (let i = 0; i < 5; i++) {
       await openbookTwap.methods
@@ -215,11 +242,5 @@ describe("openbook-twap", () => {
 
     let storedTwapMarket2= await openbookTwap.account.twapMarket.fetch(twapMarket);
     console.log(storedTwapMarket2);
-
-    //console.log(await openbook.getBookSide(storedMarket.bids));
-
-    //console.log(await openbook.getLeafNodes(await openbook.getBookSide(storedMarket.bids)));
-
-    //console.log(await getAccount(connection, quoteAccount));
   });
 });

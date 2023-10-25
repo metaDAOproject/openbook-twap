@@ -32,6 +32,8 @@ declare_id!("EgYfg4KUAbXP4UfTrsauxvs75QFf28b3MVEV8qFUGBRh");
 // `cancel_order` that wraps `cancel_order`
 // `cancel_order_by_client_id` that wraps `cancel_order_by_client_id`
 // `cancel_all_orders` that wraps `cancel_all_orders`
+// `place_take_order` that wraps `place_take_order`
+// `cancel_and_place_orders` that wraps `cancel_and_place_orders`
 
 #[account]
 pub struct TWAPMarket {
