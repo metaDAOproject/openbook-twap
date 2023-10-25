@@ -16,18 +16,22 @@ declare_id!("EgYfg4KUAbXP4UfTrsauxvs75QFf28b3MVEV8qFUGBRh");
 //
 // wrappers:
 // - place_order - PlaceOrder
+// - place_order_pegged - PlaceOrder
 // - edit_order - PlaceOrder
 // - edit_order_pegged - PlaceOrder
 // - cancel_and_place_orders - CancelAndPlaceOrders
-// - place_order_pegged - PlaceOrder
 // - place_take_order - PlaceTakeOrder
 // - cancel_order - CancelOrder
 // - cancel_order_by_client_id - CancelOrder
 // - cancel_all_orders - CancelOrder
 // DONE: 
 // `place_order` that wraps `place_order`
+// `place_order_pegged` that wraps `place_order_pegged`
 // `edit_order` that wraps `edit_order` and stores
+// `edit_order_pegged` that wraps `edit_order_pegged`
 // `cancel_order` that wraps `cancel_order`
+// `cancel_order_by_client_id` that wraps `cancel_order_by_client_id`
+// `cancel_all_orders` that wraps `cancel_all_orders`
 
 #[account]
 pub struct TWAPMarket {
@@ -180,6 +184,78 @@ pub struct CancelOrder<'info> {
     pub openbook_program: Program<'info, OpenbookV2>,
 }
 
+#[derive(Accounts)]
+pub struct PlaceTakeOrder<'info> {
+    #[account(mut)]
+    pub twap_market: Account<'info, TWAPMarket>,
+    #[account(mut)]
+    pub signer: Signer<'info>,
+    #[account(mut)]
+    pub market: AccountLoader<'info, Market>,
+    /// CHECK: verified in CPI
+    pub market_authority: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub bids: AccountLoader<'info, BookSide>,
+    #[account(mut)]
+    pub asks: AccountLoader<'info, BookSide>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub market_base_vault: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub market_quote_vault: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub event_heap: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub user_base_account: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub user_quote_account: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub referrer_account: Option<UncheckedAccount<'info>>,
+    /// CHECK: verified in CPI
+    pub token_program: UncheckedAccount<'info>,
+    pub openbook_program: Program<'info, OpenbookV2>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct CancelAndPlaceOrders<'info> {
+    pub signer: Signer<'info>,
+    #[account(mut)]
+    pub twap_market: Account<'info, TWAPMarket>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub open_orders_account: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub user_quote_account: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub user_base_account: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub market: AccountLoader<'info, Market>,
+    #[account(mut)]
+    pub bids: AccountLoader<'info, BookSide>,
+    #[account(mut)]
+    pub asks: AccountLoader<'info, BookSide>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub event_heap: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub market_quote_vault: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub market_base_vault: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    pub token_program: UncheckedAccount<'info>,
+    pub openbook_program: Program<'info, OpenbookV2>,
+}
+
 #[derive(AnchorSerialize, AnchorDeserialize, Debug, Copy, Clone)]
 pub struct PlaceOrderArgs {
     pub side: Side,
@@ -235,6 +311,29 @@ impl From<PlaceOrderPeggedArgs> for openbook_v2::PlaceOrderPeggedArgs {
             order_type: args.order_type.into(),
             expiry_timestamp: args.expiry_timestamp.into(),
             self_trade_behavior: args.self_trade_behavior.into(),
+            limit: args.limit,
+        }
+    }
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Debug, Copy, Clone)]
+pub struct PlaceTakeOrderArgs {
+    pub side: Side,
+    pub price_lots: i64,
+    pub max_base_lots: i64,
+    pub max_quote_lots_including_fees: i64,
+    pub order_type: PlaceOrderType,
+    pub limit: u8,
+}
+
+impl From<PlaceTakeOrderArgs> for openbook_v2::PlaceTakeOrderArgs {
+    fn from(args: PlaceTakeOrderArgs) -> Self {
+        Self {
+            side: args.side.into(),
+            price_lots: args.price_lots,
+            max_base_lots: args.max_base_lots,
+            max_quote_lots_including_fees: args.max_quote_lots_including_fees,
+            order_type: args.order_type.into(),
             limit: args.limit,
         }
     }
@@ -600,6 +699,96 @@ pub mod openbook_twap {
 
         Ok(())
     }
+
+
+    // Other endpoints
+    // place_take_order
+    // cancel_and_place_orders
+
+    pub fn place_take_order<'info>(ctx: Context<'_, '_, '_, 'info, PlaceTakeOrder<'info>>, args: PlaceTakeOrderArgs) -> Result<()> {
+        let oracle = &mut ctx.accounts.twap_market.twap_oracle;
+
+        let bids = ctx.accounts.bids.load()?;
+        let asks = ctx.accounts.asks.load()?;
+
+        oracle.update_oracle(bids, asks);
+
+        let market_key = ctx.accounts.market.key();
+
+        let seeds = TWAPMarket::get_twap_market_seeds(&market_key, &ctx.accounts.twap_market.pda_bump);
+        let signer_seeds = &[&seeds[..]];
+
+        openbook_v2::cpi::place_take_order(
+            CpiContext::new_with_signer(
+                ctx.accounts.openbook_program.to_account_info(),
+                openbook_v2::cpi::accounts::PlaceTakeOrder {
+                    signer: ctx.accounts.signer.to_account_info(),
+                    market: ctx.accounts.market.to_account_info(),
+                    market_authority: ctx.accounts.market_authority.to_account_info(),
+                    bids: ctx.accounts.bids.to_account_info(),
+                    asks: ctx.accounts.asks.to_account_info(),
+                    market_base_vault: ctx.accounts.market_base_vault.to_account_info(),
+                    market_quote_vault: ctx.accounts.market_quote_vault.to_account_info(),
+                    event_heap: ctx.accounts.event_heap.to_account_info(),
+                    user_base_account: ctx.accounts.user_base_account.to_account_info(),
+                    user_quote_account: ctx.accounts.user_quote_account.to_account_info(),
+                    referrer_account: None, // This acc is in the IX but idk if we are using so i marked None
+                    oracle_a: None,
+                    oracle_b: None,
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                    system_program: ctx.accounts.system_program.to_account_info(),
+                    open_orders_admin: Some(ctx.accounts.twap_market.to_account_info()),
+                },
+                signer_seeds
+            ),
+            args.into(),
+        )?;
+        Ok(())
+    }
+
+    pub fn cancel_and_place_orders(ctx: Context<CancelAndPlaceOrders>, cancel_client_orders_ids: Vec<u64>, place_orders: Vec<PlaceOrderArgs>) -> Result<Vec<Option<u128>>> {
+        let oracle = &mut ctx.accounts.twap_market.twap_oracle;
+
+        let bids = ctx.accounts.bids.load()?;
+        let asks = ctx.accounts.asks.load()?;
+
+        oracle.update_oracle(bids, asks);
+
+        let market_key = ctx.accounts.market.key();
+
+        let seeds = TWAPMarket::get_twap_market_seeds(&market_key, &ctx.accounts.twap_market.pda_bump);
+        let signer_seeds = &[&seeds[..]];
+
+        let cpi_place_orders: Vec<openbook_v2::PlaceOrderArgs> = place_orders.iter().cloned().map(|arg| arg.into()).collect();
+
+        let retval = openbook_v2::cpi::cancel_and_place_orders(
+            CpiContext::new_with_signer(
+                ctx.accounts.openbook_program.to_account_info(),
+                openbook_v2::cpi::accounts::CancelAndPlaceOrders {
+                    signer: ctx.accounts.signer.to_account_info(),
+                    open_orders_account: ctx.accounts.open_orders_account.to_account_info(),
+                    open_orders_admin: Some(ctx.accounts.twap_market.to_account_info()),
+                    user_quote_account: ctx.accounts.user_quote_account.to_account_info(),
+                    user_base_account: ctx.accounts.user_base_account.to_account_info(),
+                    market: ctx.accounts.market.to_account_info(),
+                    bids: ctx.accounts.bids.to_account_info(),
+                    asks: ctx.accounts.asks.to_account_info(),
+                    event_heap: ctx.accounts.event_heap.to_account_info(),
+                    market_quote_vault: ctx.accounts.market_quote_vault.to_account_info(),
+                    market_base_vault: ctx.accounts.market_base_vault.to_account_info(),
+                    oracle_a: None,
+                    oracle_b: None,
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                },
+                signer_seeds
+            ), 
+            cancel_client_orders_ids, 
+            cpi_place_orders
+        )?;
+
+        Ok(retval.get())
+    }
+
 }
 
 #[error_code]
