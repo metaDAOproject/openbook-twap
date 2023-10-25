@@ -564,7 +564,7 @@ pub mod openbook_twap {
         Ok(retval.get())
     }
 
-    pub fn cancel_all_orders(ctx: Context<CancelOrder>, side_option: Option<openbook_v2::state::Side>, limit: u8) -> Result<()> {
+    pub fn cancel_all_orders(ctx: Context<CancelOrder>, side_option: Option<Side>, limit: u8) -> Result<()> {
         let oracle = &mut ctx.accounts.twap_market.twap_oracle;
 
         let bids = ctx.accounts.bids.load()?;
@@ -576,6 +576,11 @@ pub mod openbook_twap {
 
         let seeds = TWAPMarket::get_twap_market_seeds(&market_key, &ctx.accounts.twap_market.pda_bump);
         let signer_seeds = &[&seeds[..]];
+
+        let cpi_side_option = side_option.map(|inner| match inner {
+            Side::Bid => openbook_v2::state::Side::Bid,
+            Side::Ask => openbook_v2::state::Side::Ask,
+        });
 
         openbook_v2::cpi::cancel_all_orders(
             CpiContext::new_with_signer(
@@ -589,7 +594,7 @@ pub mod openbook_twap {
                         },
                         signer_seeds,
                 ), 
-            side_option.into(),
+            cpi_side_option,
             limit
         )?;
 
