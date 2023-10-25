@@ -7,6 +7,7 @@ use std::cell::Ref;
 //use openbook_v2::PlaceOrderArgs;
 
 const MAX_BPS: u16 = 10_000;
+const TWAP_MARKET: &[u8] = b"twap_market";
 
 declare_id!("EgYfg4KUAbXP4UfTrsauxvs75QFf28b3MVEV8qFUGBRh");
 
@@ -24,14 +25,25 @@ declare_id!("EgYfg4KUAbXP4UfTrsauxvs75QFf28b3MVEV8qFUGBRh");
 // - cancel_order
 // - cancel_order_by_client_id
 // - cancel_all_orders
+// DONE: 
 // `place_order` that wraps `place_order`
 // `edit_order` that wraps `edit_order` and stores
+// `cancel_order` that wraps `cancel_order`
 
 #[account]
 pub struct TWAPMarket {
     pub market: Pubkey,
     pub pda_bump: u8,
     pub twap_oracle: TWAPOracle,
+}
+
+impl TWAPMarket {
+    pub fn get_twap_market_seeds<'a>(
+        market: &'a Pubkey, 
+        bump: &'a u8
+    ) -> [&'a [u8]; 3] {
+        [TWAP_MARKET.as_ref(), market.as_ref(), bytemuck::bytes_of(bump)]
+    }
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
@@ -152,6 +164,22 @@ pub struct PlaceOrder<'info> {
     pub market_vault: UncheckedAccount<'info>,
     /// CHECK: verified in CPI
     pub token_program: UncheckedAccount<'info>,
+    pub openbook_program: Program<'info, OpenbookV2>,
+}
+
+#[derive(Accounts)]
+pub struct CancelOrder<'info> {
+    pub signer: Signer<'info>,
+    #[account(mut)]
+    pub twap_market: Account<'info, TWAPMarket>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub open_orders_account: UncheckedAccount<'info>,
+    pub market: AccountLoader<'info, Market>,
+    #[account(mut)]
+    pub bids:  AccountLoader<'info, BookSide>,
+    #[account(mut)]
+    pub asks: AccountLoader<'info, BookSide>,
     pub openbook_program: Program<'info, OpenbookV2>,
 }
 
@@ -282,7 +310,7 @@ pub mod openbook_twap {
         oracle.update_oracle(bids, asks);
 
         let market_key = ctx.accounts.market.key();
-        let twap_market_seeds = &[b"twap_market", market_key.as_ref(), &[ctx.accounts.twap_market.pda_bump]];
+        let twap_market_seeds = TWAPMarket::get_twap_market_seeds(&market_key, &ctx.accounts.twap_market.pda_bump);
         let signer = &[&twap_market_seeds[..]];
 
         let cpi_program = ctx.accounts.openbook_program.to_account_info();
@@ -303,6 +331,37 @@ pub mod openbook_twap {
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accs, signer);
 
         openbook_v2::cpi::place_order(cpi_ctx, place_order_args.into())?;
+
+        Ok(())
+    }
+
+    pub fn cancel_order(ctx: Context<CancelOrder>, order_id: u128) -> Result<()> {
+        let oracle = &mut ctx.accounts.twap_market.twap_oracle;
+
+        let bids = ctx.accounts.bids.load()?;
+        let asks = ctx.accounts.asks.load()?;
+
+        oracle.update_oracle(bids, asks);
+
+        let market_key = ctx.accounts.market.key();
+
+        let seeds = TWAPMarket::get_twap_market_seeds(&market_key, &ctx.accounts.twap_market.pda_bump);
+        let signer_seeds = &[&seeds[..]];
+
+        openbook_v2::cpi::cancel_order(
+            CpiContext::new_with_signer(
+            ctx.accounts.openbook_program.to_account_info(),
+            cpi::accounts::CancelOrder {
+                        signer: ctx.accounts.signer.to_account_info(),
+                        open_orders_account: ctx.accounts.open_orders_account.to_account_info(),
+                        market: ctx.accounts.market.to_account_info(),
+                        bids:  ctx.accounts.bids.to_account_info(),
+                        asks: ctx.accounts.asks.to_account_info(),
+                    },
+                    signer_seeds,
+            ), 
+            order_id
+        )?;
 
         Ok(())
     }
