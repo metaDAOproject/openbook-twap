@@ -8,7 +8,8 @@ import {
   PlaceOrderArgs,
   Side,
   OrderType,
-  SelfTradeBehavior
+  SelfTradeBehavior,
+  PlaceOrderPeggedArgs
 } from "@openbook-dex/openbook-v2";
 
 import { expect, assert } from "chai";
@@ -37,6 +38,8 @@ const OPENBOOK_PROGRAM_ID = new PublicKey(
 
 export type OpenBookProgram = Program<OpenBookIDL>;
 
+type PlaceOrderPeggedArgs = anchor.IdlTypes<OpenBookIDL>['PlaceOrderPeggedArgs'];
+
 const META_AMOUNT = 100n * 1_000_000_000n;
 const USDC_AMOUNT = 1000n * 1_000_000n;
 
@@ -63,8 +66,6 @@ describe("openbook-twap", () => {
       6
     );
 
-    console.log("Hello we are here 1")
-
     let USDC = await createMint(
       connection,
       provider.wallet.payer,
@@ -73,9 +74,6 @@ describe("openbook-twap", () => {
       6
     );
 
-    console.log("Hello we are here 2")
-
-
     let usdcAccount = await createAccount(
       connection,
       provider.wallet.payer,
@@ -83,18 +81,12 @@ describe("openbook-twap", () => {
       provider.wallet.payer.publicKey,
     );
 
-    console.log("Hello we are here 3")
-
-
     let metaAccount = await createAccount(
       connection,
       provider.wallet.payer,
       META,
       provider.wallet.payer.publicKey,
     );
-
-    console.log("Hello we are here 4")
-
 
     await mintTo(
       connection,
@@ -105,9 +97,6 @@ describe("openbook-twap", () => {
       META_AMOUNT
     );
 
-    console.log("Hello we are here 5")
-
-
     await mintTo(
       connection,
       provider.wallet.payer,
@@ -116,8 +105,6 @@ describe("openbook-twap", () => {
       mintAuthority,
       USDC_AMOUNT
     );
-
-    console.log("Hello we are here 6")
     
     let marketKP = Keypair.generate();
     
@@ -145,17 +132,12 @@ describe("openbook-twap", () => {
       marketKP
     );
 
-    console.log("Hello we are here 7")
-
     await openbookTwap.methods.createTwapMarket()
       .accounts({
         market,
         twapMarket,
       })
       .rpc();
-
-      console.log("Hello we are here 8")
-
 
     let storedTwapMarket = await openbookTwap.account.twapMarket.fetch(twapMarket);
 
@@ -174,9 +156,6 @@ describe("openbook-twap", () => {
       new BN(USDC_AMOUNT),
     );
 
-    console.log("Hello we are here 9")
-
-
     let buyArgs: PlaceOrderArgs = {
       side: Side.Bid,
       priceLots: new BN(10_000), // 1 META for 1 USDC
@@ -188,6 +167,7 @@ describe("openbook-twap", () => {
       selfTradeBehavior: SelfTradeBehavior.DecrementTake,
       limit: 255,
     };
+
     let sellArgs: PlaceOrderArgs = {
       side: Side.Ask,
       priceLots: new BN(12_000), // 1 META for 1.2 USDC
@@ -200,7 +180,15 @@ describe("openbook-twap", () => {
       limit: 255,
     };
 
-    console.log("Hello we are here 10")
+    // let buyPeggedArgs: PlaceOrderPeggedArgs {
+    //   side: Side.Bid,
+    //   priceOffsetLots: ,
+    //   pegLimit: ,
+    //   maxBaseLots: new BN(1),
+    //   maxQuoteLotsIncludingFees: ,
+    //   clientOrderId: new BN(3),
+    //   expiryTimestamp: Date.now(),
+    // };
 
     for (let i = 0; i < 5; i++) {
       await openbookTwap.methods
@@ -238,9 +226,75 @@ describe("openbook-twap", () => {
         .rpc();
     }
 
+    for (let i = 0; i < 5; i++) {
+      await openbookTwap.methods
+        .editOrder(buyArgs.clientOrderId, new BN(5), buyArgs)
+        .accounts({
+          signer: payer.publicKey,
+          asks: storedMarket.asks,
+          bids: storedMarket.bids,
+          marketVault: storedMarket.marketBaseVault,
+          eventHeap: storedMarket.eventHeap,
+          market,
+          openOrdersAccount: openOrders,
+          userTokenAccount: metaAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          twapMarket,
+          openbookProgram: OPENBOOK_PROGRAM_ID,
+        })
+        .rpc();
+
+      await openbookTwap.methods
+        .editOrder(sellArgs.clientOrderId, new BN(5), sellArgs)
+        .accounts({
+          signer: payer.publicKey,
+          asks: storedMarket.asks,
+          bids: storedMarket.bids,
+          marketVault: storedMarket.marketBaseVault,
+          eventHeap: storedMarket.eventHeap,
+          market,
+          openOrdersAccount: openOrders,
+          userTokenAccount: metaAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          twapMarket,
+          openbookProgram: OPENBOOK_PROGRAM_ID,
+        })
+        .rpc();
+    }
+
+    // for (let i = 0; i < 5; i++) {
+    //   await openbookTwap.methods
+    //     .cancelOrderByClientId(buyArgs.clientOrderId)
+    //     .accounts({
+    //       signer: payer.publicKey,
+    //       twapMarket,
+    //       openOrdersAccount: openOrders,
+    //       market,
+    //       bids: storedMarket.bids,
+    //       asks: storedMarket.asks,
+    //       openbookProgram: OPENBOOK_PROGRAM_ID,
+    //     })
+    //     .rpc();
+
+    //     await openbookTwap.methods
+    //     .cancelOrderByClientId(sellArgs.clientOrderId)
+    //     .accounts({
+    //       signer: payer.publicKey,
+    //       twapMarket,
+    //       openOrdersAccount: openOrders,
+    //       market,
+    //       bids: storedMarket.bids,
+    //       asks: storedMarket.asks,
+    //       openbookProgram: OPENBOOK_PROGRAM_ID,
+    //     })
+    //     .rpc();
+    // }
+
     console.log((await openbook.getOpenOrders(openOrders)).position);
 
-    let storedTwapMarket2= await openbookTwap.account.twapMarket.fetch(twapMarket);
+    let storedTwapMarket2 = await openbookTwap.account.twapMarket.fetch(twapMarket);
     console.log(storedTwapMarket2);
+
+
   });
 });

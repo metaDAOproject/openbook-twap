@@ -725,6 +725,7 @@ pub mod openbook_twap {
                 ctx.accounts.openbook_program.to_account_info(),
                 openbook_v2::cpi::accounts::PlaceTakeOrder {
                     signer: ctx.accounts.signer.to_account_info(),
+                    penalty_payer: ctx.accounts.signer.to_account_info(),
                     market: ctx.accounts.market.to_account_info(),
                     market_authority: ctx.accounts.market_authority.to_account_info(),
                     bids: ctx.accounts.bids.to_account_info(),
