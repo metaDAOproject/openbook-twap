@@ -65,30 +65,32 @@ impl Default for TWAPOracle {
 
 impl TWAPOracle {
     pub fn update_oracle(&mut self, spot_price: u64, current_slot: u64) {
-        let last_obs = self.last_observation;
+        let last_observation = self.last_observation;
 
-        let obs = if spot_price > last_obs {
-            let max_obs = last_obs
+        let observation = if spot_price > last_observation {
+            let max_observation = last_observation
                 .saturating_mul((MAX_BPS + self.max_observation_change_per_update_bps) as u64)
                 .saturating_div(MAX_BPS as u64)
                 .saturating_add(1);        
 
-            std::cmp::min(spot_price, max_obs)
+            std::cmp::min(spot_price, max_observation)
         } else {
-            let min_obs = last_obs
+            let min_observation = last_observation
                 .saturating_mul((MAX_BPS - self.max_observation_change_per_update_bps) as u64)
                 .saturating_div(MAX_BPS as u64);
             
-            std::cmp::max(spot_price, min_obs)
+            std::cmp::max(spot_price, min_observation)
         };
 
-        let weighted_observation = obs * (current_slot - self.last_updated_slot);
+        let weighted_observation = observation * (current_slot - self.last_updated_slot);
 
         self.last_updated_slot = current_slot;
-        self.last_observation = obs;
+        self.last_observation = observation;
         self.observation_aggregator += weighted_observation as u128;
     }
 }
+
+
 #[derive(Accounts)]
 pub struct CreateTWAPMarket<'info> {
     pub market: AccountLoader<'info, Market>,

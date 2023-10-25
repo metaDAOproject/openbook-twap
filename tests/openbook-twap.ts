@@ -44,7 +44,7 @@ describe("openbook-twap", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
   const connection = provider.connection;
-  const payer = provider.wallet.publicKey;
+  const payer = provider.wallet.payer;
 
   const openbookTwap = anchor.workspace.OpenbookTwap as Program<OpenbookTwap>;
   const openbook = new OpenBookV2Client(OPENBOOK_PROGRAM_ID, provider);
@@ -126,7 +126,7 @@ describe("openbook-twap", () => {
       null,
       twapMarket,
       { confFilter: 0.1, maxStalenessSlots: 100 },
-      marketKP.publicKey
+      marketKP
     );
     await openbookTwap.methods.createTwapMarket()
       .accounts({
