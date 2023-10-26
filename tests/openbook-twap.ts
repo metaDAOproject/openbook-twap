@@ -298,6 +298,5 @@ describe("openbook-twap", () => {
 
     let storedTwapMarket2 = await openbookTwap.account.twapMarket.fetch(twapMarket);
     console.log("Final oracle observation = " + storedTwapMarket2.twapOracle.lastObservation.toNumber());
-
   });
 });
