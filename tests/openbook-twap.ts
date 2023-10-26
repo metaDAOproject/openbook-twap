@@ -351,7 +351,6 @@ describe("openbook-twap", () => {
     //       openbookProgram: OPENBOOK_PROGRAM_ID,
     //     })
     //     .rpc();
-
     //     await openbookTwap.methods
     //     .cancelOrderByClientId(sellArgs.clientOrderId)
     //     .accounts({
@@ -371,6 +370,5 @@ describe("openbook-twap", () => {
     let storedTwapMarket2 = await openbookTwap.account.twapMarket.fetch(twapMarket);
     // console.log(storedTwapMarket2);
     console.log("Final oracle observation = " + storedTwapMarket2.twapOracle.lastObservation.toNumber());
-
   });
 });
