@@ -131,7 +131,7 @@ describe("openbook-twap", () => {
       marketKP
     );
 
-    await openbookTwap.methods.createTwapMarket()
+    await openbookTwap.methods.createTwapMarket(new BN(550))
       .accounts({
         market,
         twapMarket,
