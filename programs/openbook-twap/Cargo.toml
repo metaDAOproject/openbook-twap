@@ -22,3 +22,4 @@ openbook-v2 = { git = "https://github.com/openbook-dex/openbook-v2.git", feature
 #solana-program = "^0.14.12"
 solana-program = "~1.16.1"
 num = "^0.4.1"
+bytemuck = "1.14.0"
