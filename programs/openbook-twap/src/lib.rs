@@ -8,7 +8,7 @@ use std::cell::Ref;
 const MAX_BPS: u16 = 10_000;
 const TWAP_MARKET: &[u8] = b"twap_market";
 
-declare_id!("EgYfg4KUAbXP4UfTrsauxvs75QFf28b3MVEV8qFUGBRh");
+declare_id!("4dchEcc6TTC4QVyZQUWgQgcdAsXrUBxsdxpu572BY3Y2");
 
 // `create_twap_market` that verifies that the `open_orders_authority` and
 // `close_market_admin` are set to `twap_market`, `time_expiry` == 0, store
