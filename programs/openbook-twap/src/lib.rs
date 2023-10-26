@@ -69,6 +69,7 @@ impl Default for TWAPOracle {
         // This will give us 0 as the slot which we had anyways
         let clock = Clock::get().unwrap_or(Clock::default());
         Self {
+            expected_value: 0,
             last_updated_slot: clock.slot,
             last_observed_slot: 0,
             last_observation: 0,
