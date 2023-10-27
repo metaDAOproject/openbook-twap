@@ -93,7 +93,7 @@ describe("openbook-twap", () => {
       META,
       metaAccount,
       mintAuthority,
-      META_AMOUNT
+      META_AMOUNT * 50n
     );
 
     await mintTo(
@@ -102,7 +102,7 @@ describe("openbook-twap", () => {
       USDC,
       usdcAccount,
       mintAuthority,
-      USDC_AMOUNT
+      USDC_AMOUNT * 50n
     );
     
     let marketKP = Keypair.generate();
@@ -131,7 +131,7 @@ describe("openbook-twap", () => {
       marketKP
     );
 
-    await openbookTwap.methods.createTwapMarket()
+    await openbookTwap.methods.createTwapMarket(new BN(550))
       .accounts({
         market,
         twapMarket,
@@ -143,23 +143,33 @@ describe("openbook-twap", () => {
     assert.ok(storedTwapMarket.market.equals(market));
 
     let storedMarket = await openbook.getMarket(market);
-    let openOrders = await openbook.createOpenOrders(market, new BN(1), 'oo');
 
-    await openbook.deposit(
-      openOrders,
-      await openbook.getOpenOrders(openOrders),
-      storedMarket,
-      metaAccount,
-      usdcAccount,
-      new BN(META_AMOUNT),
-      new BN(USDC_AMOUNT),
-    );
+    let oos = [];
+
+    const NUM_ORDERS = 240;
+
+    for (let i = 0; i < Math.floor(NUM_ORDERS / 24) ; i++) {
+      let openOrders = await openbook.createOpenOrders(market, new BN(i + 1), `oo${i}`)
+      oos.push(openOrders)
+      console.log(`Created oo${i}`)
+      await openbook.deposit(
+        oos[i],
+        await openbook.getOpenOrders(oos[i]),
+        storedMarket,
+        metaAccount,
+        usdcAccount,
+        new BN(META_AMOUNT),
+        new BN(USDC_AMOUNT),
+      );
+
+      console.log(`Deposited to oo${i}`)
+    }
 
     let buyArgs: PlaceOrderArgs = {
       side: Side.Bid,
-      priceLots: new BN(10_000), // 1 META for 1 USDC
+      priceLots: new BN(500), // 1 META for 1 USDC
       maxBaseLots: new BN(1),
-      maxQuoteLotsIncludingFees: new BN(10_000),
+      maxQuoteLotsIncludingFees: new BN(500),
       clientOrderId: new BN(1),
       orderType: OrderType.Limit,
       expiryTimestamp: new BN(0),
@@ -169,9 +179,9 @@ describe("openbook-twap", () => {
 
     let sellArgs: PlaceOrderArgs = {
       side: Side.Ask,
-      priceLots: new BN(12_000), // 1 META for 1.2 USDC
+      priceLots: new BN(550), // 1 META for 1.2 USDC
       maxBaseLots: new BN(1),
-      maxQuoteLotsIncludingFees: new BN(12_000),
+      maxQuoteLotsIncludingFees: new BN(550),
       clientOrderId: new BN(2),
       orderType: OrderType.Limit,
       expiryTimestamp: new BN(0),
@@ -179,53 +189,11 @@ describe("openbook-twap", () => {
       limit: 255,
     };
 
-    for (let i = 0; i < 13; i++) {
-      await openbookTwap.methods
-        .placeOrder(buyArgs)
-        .accounts({
-          signer: payer.publicKey,
-          asks: storedMarket.asks,
-          bids: storedMarket.bids,
-          marketVault: storedMarket.marketQuoteVault,
-          eventHeap: storedMarket.eventHeap,
-          market,
-          openOrdersAccount: openOrders,
-          userTokenAccount: usdcAccount,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          twapMarket,
-          openbookProgram: OPENBOOK_PROGRAM_ID,
-        })
-        .rpc();
-
-      let buyMarketHealthy = await openbookTwap.account.twapMarket.fetch(twapMarket);
-      console.log("Healthy buy observation: " + i + " = " + buyMarketHealthy.twapOracle.lastObservation.toNumber());
-
-      await openbookTwap.methods
-        .placeOrder(sellArgs)
-        .accounts({
-          signer: payer.publicKey,
-          asks: storedMarket.asks,
-          bids: storedMarket.bids,
-          marketVault: storedMarket.marketBaseVault,
-          eventHeap: storedMarket.eventHeap,
-          market,
-          openOrdersAccount: openOrders,
-          userTokenAccount: metaAccount,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          twapMarket,
-          openbookProgram: OPENBOOK_PROGRAM_ID,
-        })
-        .rpc();
-
-        let sellMarketHealthy = await openbookTwap.account.twapMarket.fetch(twapMarket);
-        console.log("Healthy sell observation: " + i + " = " + sellMarketHealthy.twapOracle.lastObservation.toNumber());
-      }
-
-    let manipulatedPriceArgs: PlaceOrderArgs = {
+    let manipulatedBuyArgs: PlaceOrderArgs = {
       side: Side.Bid,
-      priceLots: new BN(100_000_000_000_000), 
+      priceLots: new BN(1), 
       maxBaseLots: new BN(1),
-      maxQuoteLotsIncludingFees: new BN(10_000),
+      maxQuoteLotsIncludingFees: new BN(500),
       clientOrderId: new BN(1),
       orderType: OrderType.Limit,
       expiryTimestamp: new BN(0),
@@ -235,9 +203,9 @@ describe("openbook-twap", () => {
 
     let manipulatedSellArgs: PlaceOrderArgs = {
       side: Side.Ask,
-      priceLots: new BN(1), 
+      priceLots: new BN(100_000_000_000_000), 
       maxBaseLots: new BN(1),
-      maxQuoteLotsIncludingFees: new BN(10_000),
+      maxQuoteLotsIncludingFees: new BN(550),
       clientOrderId: new BN(2),
       orderType: OrderType.Limit,
       expiryTimestamp: new BN(0),
@@ -245,130 +213,90 @@ describe("openbook-twap", () => {
       limit: 255,
     };
 
-    // for (let i = 0; i < 5; i++) {
-    //   await openbookTwap.methods
-    //     .placeOrder(manipulatedPriceArgs)
-    //     .accounts({
-    //       signer: payer.publicKey,
-    //       asks: storedMarket.asks,
-    //       bids: storedMarket.bids,
-    //       marketVault: storedMarket.marketQuoteVault,
-    //       eventHeap: storedMarket.eventHeap,
-    //       market,
-    //       openOrdersAccount: openOrders,
-    //       userTokenAccount: usdcAccount,
-    //       tokenProgram: TOKEN_PROGRAM_ID,
-    //       twapMarket,
-    //       openbookProgram: OPENBOOK_PROGRAM_ID,
-    //     })
-    //     .rpc();
+    for (let i = 0; i < oos.length; i++) {
+      for (let j = 0; j < 12; j++) {
+        let idx: number = j + (i * 12)
 
-    //     let buyMarketManipulated = await openbookTwap.account.twapMarket.fetch(twapMarket);
-    //     console.log("Manipulated buy observation: " + i + " = " + buyMarketManipulated.twapOracle.lastObservation.toNumber());
+        if ((i > 0) && (i % 2 == 0)) {
+          await openbookTwap.methods
+            .placeOrder(manipulatedBuyArgs)
+            .accounts({
+              signer: payer.publicKey,
+              asks: storedMarket.asks,
+              bids: storedMarket.bids,
+              marketVault: storedMarket.marketQuoteVault,
+              eventHeap: storedMarket.eventHeap,
+              market,
+              openOrdersAccount: oos[i],
+              userTokenAccount: usdcAccount,
+              tokenProgram: TOKEN_PROGRAM_ID,
+              twapMarket,
+              openbookProgram: OPENBOOK_PROGRAM_ID,
+            })
+            .rpc();
 
-    //   await openbookTwap.methods
-    //     .placeOrder(manipulatedSellArgs)
-    //     .accounts({
-    //       signer: payer.publicKey,
-    //       asks: storedMarket.asks,
-    //       bids: storedMarket.bids,
-    //       marketVault: storedMarket.marketBaseVault,
-    //       eventHeap: storedMarket.eventHeap,
-    //       market,
-    //       openOrdersAccount: openOrders,
-    //       userTokenAccount: metaAccount,
-    //       tokenProgram: TOKEN_PROGRAM_ID,
-    //       twapMarket,
-    //       openbookProgram: OPENBOOK_PROGRAM_ID,
-    //     })
-    //     .rpc();
+          await openbookTwap.methods
+            .placeOrder(manipulatedSellArgs)
+            .accounts({
+              signer: payer.publicKey,
+              asks: storedMarket.asks,
+              bids: storedMarket.bids,
+              marketVault: storedMarket.marketBaseVault,
+              eventHeap: storedMarket.eventHeap,
+              market,
+              openOrdersAccount: oos[i],
+              userTokenAccount: metaAccount,
+              tokenProgram: TOKEN_PROGRAM_ID,
+              twapMarket,
+              openbookProgram: OPENBOOK_PROGRAM_ID,
+            })
+            .rpc();
+    
+            let manipulatedMarket = await openbookTwap.account.twapMarket.fetch(twapMarket);
+            console.log("Manipulated observation: " + idx + " = " + manipulatedMarket.twapOracle.lastObservation.toNumber());
+      
+        } else {
+          await openbookTwap.methods
+          .placeOrder(buyArgs)
+          .accounts({
+            signer: payer.publicKey,
+            asks: storedMarket.asks,
+            bids: storedMarket.bids,
+            marketVault: storedMarket.marketQuoteVault,
+            eventHeap: storedMarket.eventHeap,
+            market,
+            openOrdersAccount: oos[i],
+            userTokenAccount: usdcAccount,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            twapMarket,
+            openbookProgram: OPENBOOK_PROGRAM_ID,
+          })
+          .rpc();
 
-    //     let sellMarketManipulated = await openbookTwap.account.twapMarket.fetch(twapMarket);
-    //     console.log("Manipulated sell observation: " + i + " = " + sellMarketManipulated.twapOracle.lastObservation.toNumber());
-    //   }
+          await openbookTwap.methods
+            .placeOrder(sellArgs)
+            .accounts({
+              signer: payer.publicKey,
+              asks: storedMarket.asks,
+              bids: storedMarket.bids,
+              marketVault: storedMarket.marketBaseVault,
+              eventHeap: storedMarket.eventHeap,
+              market,
+              openOrdersAccount: oos[i],
+              userTokenAccount: metaAccount,
+              tokenProgram: TOKEN_PROGRAM_ID,
+              twapMarket,
+              openbookProgram: OPENBOOK_PROGRAM_ID,
+            })
+            .rpc();
 
-
-    // for (let i = 0; i < 5; i++) {
-    //   await openbookTwap.methods
-    //     .editOrder(buyArgs.clientOrderId, new BN(5), buyArgs)
-    //     .accounts({
-    //       signer: payer.publicKey,
-    //       asks: storedMarket.asks,
-    //       bids: storedMarket.bids,
-    //       marketVault: storedMarket.marketBaseVault,
-    //       eventHeap: storedMarket.eventHeap,
-    //       market,
-    //       openOrdersAccount: openOrders,
-    //       userTokenAccount: metaAccount,
-    //       tokenProgram: TOKEN_PROGRAM_ID,
-    //       twapMarket,
-    //       openbookProgram: OPENBOOK_PROGRAM_ID,
-    //     })
-    //     .rpc();
-
-    //   await openbookTwap.methods
-    //     .editOrder(sellArgs.clientOrderId, new BN(5), sellArgs)
-    //     .accounts({
-    //       signer: payer.publicKey,
-    //       asks: storedMarket.asks,
-    //       bids: storedMarket.bids,
-    //       marketVault: storedMarket.marketBaseVault,
-    //       eventHeap: storedMarket.eventHeap,
-    //       market,
-    //       openOrdersAccount: openOrders,
-    //       userTokenAccount: metaAccount,
-    //       tokenProgram: TOKEN_PROGRAM_ID,
-    //       twapMarket,
-    //       openbookProgram: OPENBOOK_PROGRAM_ID,
-    //     })
-    //     .rpc();
-
-    // await openbookTwap.methods
-    //   .cancelAllOrders(null, 10)
-    //   .accounts({
-    //       signer: payer.publicKey,
-    //       twapMarket,
-    //       openOrdersAccount: openOrders,
-    //       market,
-    //       bids: storedMarket.bids,
-    //       asks: storedMarket.asks,
-    //       openbookProgram: OPENBOOK_PROGRAM_ID,
-    //   })
-    //   .rpc();
-
-    // }
-
-    // for (let i = 0; i < 5; i++) {
-    //   await openbookTwap.methods
-    //     .cancelOrderByClientId(buyArgs.clientOrderId)
-    //     .accounts({
-    //       signer: payer.publicKey,
-    //       twapMarket,
-    //       openOrdersAccount: openOrders,
-    //       market,
-    //       bids: storedMarket.bids,
-    //       asks: storedMarket.asks,
-    //       openbookProgram: OPENBOOK_PROGRAM_ID,
-    //     })
-    //     .rpc();
-    //     await openbookTwap.methods
-    //     .cancelOrderByClientId(sellArgs.clientOrderId)
-    //     .accounts({
-    //       signer: payer.publicKey,
-    //       twapMarket,
-    //       openOrdersAccount: openOrders,
-    //       market,
-    //       bids: storedMarket.bids,
-    //       asks: storedMarket.asks,
-    //       openbookProgram: OPENBOOK_PROGRAM_ID,
-    //     })
-    //     .rpc();
-    // }
-
-    // console.log((await openbook.getOpenOrders(openOrders)).position);
+          let healthyMarket = await openbookTwap.account.twapMarket.fetch(twapMarket);
+          console.log("Healthy sell observation: " + idx + " = " + healthyMarket.twapOracle.lastObservation.toNumber());
+        }
+      }
+    }
 
     let storedTwapMarket2 = await openbookTwap.account.twapMarket.fetch(twapMarket);
-    // console.log(storedTwapMarket2);
     console.log("Final oracle observation = " + storedTwapMarket2.twapOracle.lastObservation.toNumber());
   });
 });

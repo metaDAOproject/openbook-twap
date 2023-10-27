@@ -50,6 +50,7 @@ impl TWAPMarket {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct TWAPOracle {
+    pub expected_value: u64,
     pub last_updated_slot: u64,
     pub last_observed_slot: u64,
     pub last_observation: u64,
@@ -68,6 +69,7 @@ impl Default for TWAPOracle {
         // This will give us 0 as the slot which we had anyways
         let clock = Clock::get().unwrap_or(Clock::default());
         Self {
+            expected_value: 0,
             last_updated_slot: clock.slot,
             last_observed_slot: 0,
             last_observation: 0,
@@ -380,9 +382,15 @@ impl From<Side> for openbook_v2::state::Side {
 pub mod openbook_twap {
     use super::*;
 
-    pub fn create_twap_market(ctx: Context<CreateTWAPMarket>) -> Result<()> {
+    pub fn create_twap_market(ctx: Context<CreateTWAPMarket>, expected_value: u64) -> Result<()> {
         let market = ctx.accounts.market.load()?;
         let twap_market = &mut ctx.accounts.twap_market;
+
+        require_gte!(
+            expected_value,
+            0,
+            OpenBookTWAPError::InvalidExpectedValue
+        );
 
         require!(
             market.open_orders_admin == twap_market.key(),
@@ -405,6 +413,7 @@ pub mod openbook_twap {
         twap_market.pda_bump = *ctx.bumps.get("twap_market").unwrap();
         twap_market.market = ctx.accounts.market.key();
         twap_market.twap_oracle = TWAPOracle::default();
+        twap_market.twap_oracle.expected_value = expected_value;
 
         Ok(())
     }
@@ -670,4 +679,6 @@ pub enum OpenBookTWAPError {
     NonZeroExpiry,
     #[msg("Oracle-pegged trades mess up the TWAP so oracles and oracle-pegged trades aren't allowed")]
     NoOracles,
+    #[msg("Expected value must be gte 0")]
+    InvalidExpectedValue,
 }
