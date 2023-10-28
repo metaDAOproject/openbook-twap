@@ -20,7 +20,7 @@ security_txt! {
 const MAX_BPS: u16 = 10_000;
 const TWAP_MARKET: &[u8] = b"twap_market";
 
-declare_id!("2qjEsiMtWxAdqUSdaGM28pJRMtodnnkHZEoadc6JcFCb");
+declare_id!("TWAPjDPjuGaRMrRzW186n94RrZFU4tdWAL1Mk1NMWgk");
 
 #[account]
 pub struct TWAPMarket {
