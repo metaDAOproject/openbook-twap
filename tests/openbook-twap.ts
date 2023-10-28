@@ -304,7 +304,7 @@ describe("openbook-twap", () => {
               marketVault: storedMarket.marketBaseVault,
               eventHeap: storedMarket.eventHeap,
               market,
-              openOrdersAccount: openOrders,
+              openOrdersAccount: oos[i],
               userTokenAccount: metaAccount,
               tokenProgram: TOKEN_PROGRAM_ID,
               twapMarket,
