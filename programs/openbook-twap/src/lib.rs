@@ -51,6 +51,7 @@ impl TWAPMarket {
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct TWAPOracle {
     pub expected_value: u64,
+    pub initial_slot: u64,
     pub last_updated_slot: u64,
     pub last_observed_slot: u64,
     pub last_observation: u64,
@@ -70,6 +71,7 @@ impl Default for TWAPOracle {
         let clock = Clock::get().unwrap_or(Clock::default());
         Self {
             expected_value: 0,
+            initial_slot: clock.slot,
             last_updated_slot: clock.slot,
             last_observed_slot: 0,
             last_observation: 0,
