@@ -51,6 +51,7 @@ impl TWAPMarket {
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct TWAPOracle {
     pub expected_value: u64,
+    pub initial_slot: u64,
     pub last_updated_slot: u64,
     pub last_observed_slot: u64,
     pub last_observation: u64,
@@ -70,6 +71,7 @@ impl Default for TWAPOracle {
         let clock = Clock::get().unwrap_or(Clock::default());
         Self {
             expected_value: 0,
+            initial_slot: clock.slot,
             last_updated_slot: clock.slot,
             last_observed_slot: 0,
             last_observation: 0,
@@ -394,29 +396,15 @@ pub mod openbook_twap {
         let market = ctx.accounts.market.load()?;
         let twap_market = &mut ctx.accounts.twap_market;
 
-        require_gte!(
-            expected_value,
-            0,
-            OpenBookTWAPError::InvalidExpectedValue
-        );
-
-        require!(
-            market.open_orders_admin == twap_market.key(),
-            OpenBookTWAPError::InvalidOpenOrdersAdmin
-        );
-        require!(
-            market.close_market_admin == twap_market.key(),
-            OpenBookTWAPError::InvalidCloseMarketAdmin
-        );
         require!(market.time_expiry == 0, OpenBookTWAPError::NonZeroExpiry);
-        require!(
-            market.oracle_a.is_none(),
-            OpenBookTWAPError::NoOracles
-        );
-        require!(
-            market.oracle_b.is_none(),
-            OpenBookTWAPError::NoOracles
-        );
+        require!(market.open_orders_admin == twap_market.key(), OpenBookTWAPError::InvalidOpenOrdersAdmin);
+        require!(market.close_market_admin == twap_market.key(), OpenBookTWAPError::InvalidCloseMarketAdmin);
+        require!(market.consume_events_admin.is_none(), OpenBookTWAPError::InvalidConsumeEventsAdmin);
+        require!(market.oracle_a.is_none(), OpenBookTWAPError::NoOracles);
+        require!(market.oracle_b.is_none(), OpenBookTWAPError::NoOracles);
+        require!(market.seq_num == 0, OpenBookTWAPError::InvalidSeqNum);
+        require!(market.maker_fee == 0, OpenBookTWAPError::InvalidMakerFee);
+        require!(market.taker_fee == 0, OpenBookTWAPError::InvalidTakerFee);
 
         twap_market.pda_bump = *ctx.bumps.get("twap_market").unwrap();
         twap_market.market = ctx.accounts.market.key();
@@ -689,18 +677,20 @@ pub mod openbook_twap {
 
 #[error_code]
 pub enum OpenBookTWAPError {
-    #[msg(
-        "The `open_orders_admin` of the underlying market must be equal to the `TWAPMarket` PDA"
-    )]
+    #[msg("The `open_orders_admin` of the underlying market must be equal to the `TWAPMarket` PDA")]
     InvalidOpenOrdersAdmin,
-    #[msg(
-        "The `close_market_admin` of the underlying market must be equal to the `TWAPMarket` PDA"
-    )]
+    #[msg("The `close_market_admin` of the underlying market must be equal to the `TWAPMarket` PDA")]
     InvalidCloseMarketAdmin,
     #[msg("Market must not expire (have `time_expiry` == 0)")]
     NonZeroExpiry,
     #[msg("Oracle-pegged trades mess up the TWAP so oracles and oracle-pegged trades aren't allowed")]
     NoOracles,
-    #[msg("Expected value must be gte 0")]
-    InvalidExpectedValue,
+    #[msg("Maker fee must be zero")]
+    InvalidMakerFee,
+    #[msg("Taker fee must be zero")]
+    InvalidTakerFee,
+    #[msg("Seq num must be zero")]
+    InvalidSeqNum,
+    #[msg("Consume events admin must be None")]
+    InvalidConsumeEventsAdmin,
 }

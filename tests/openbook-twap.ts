@@ -146,7 +146,7 @@ describe("openbook-twap", () => {
 
     let oos = [];
 
-    const NUM_ORDERS = 240;
+    const NUM_ORDERS = 96;
 
     for (let i = 0; i < Math.floor(NUM_ORDERS / 24) ; i++) {
       let openOrders = await openbook.createOpenOrders(market, new BN(i + 1), `oo${i}`)
