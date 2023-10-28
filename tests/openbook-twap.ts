@@ -196,6 +196,15 @@ describe("openbook-twap", () => {
       limit: 255,
     };
 
+    let takeArgs: PlaceTakeOrderArgs = {
+        side: Side.Bid,
+        priceLots: new BN(500),
+        maxBaseLots: new BN(1),
+        maxQuoteLotsIncludingFees: new BN(500),
+        orderType: OrderType.Market,
+        limit: 255,
+    };
+
     let manipulatedBuyArgs: PlaceOrderArgs = {
       side: Side.Bid,
       priceLots: new BN(1),
@@ -295,7 +304,7 @@ describe("openbook-twap", () => {
               marketVault: storedMarket.marketBaseVault,
               eventHeap: storedMarket.eventHeap,
               market,
-              openOrdersAccount: oos[i],
+              openOrdersAccount: openOrders,
               userTokenAccount: metaAccount,
               tokenProgram: TOKEN_PROGRAM_ID,
               twapMarket,
