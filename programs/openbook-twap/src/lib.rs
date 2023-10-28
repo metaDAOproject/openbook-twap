@@ -12,6 +12,7 @@ security_txt! {
     name: "openbook_twap",
     project_url: "https://www.openbook-solana.com",
     contacts: "discord:binye,discord:skrrb,email:soundsonacid@gmail.com,email:metaproph3t@protonmail.com",
+    policy: "A bug bounty may or may not be awarded.",
     source_code: "https://github.com/metaDAOproject/openbook-twap",
     source_release: "v0",
     auditors: "None"
@@ -20,7 +21,7 @@ security_txt! {
 const MAX_BPS: u16 = 10_000;
 const TWAP_MARKET: &[u8] = b"twap_market";
 
-declare_id!("TWAPjDPjuGaRMrRzW186n94RrZFU4tdWAL1Mk1NMWgk");
+declare_id!("TWAP7frdvD3ia7TWc8e9SxZMmrpd2Yf3ifSPAHS8VG3");
 
 #[account]
 pub struct TWAPMarket {
