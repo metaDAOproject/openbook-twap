@@ -4,6 +4,19 @@ use openbook_v2::program::OpenbookV2;
 use openbook_v2::state::{BookSide, Market};
 use std::cell::Ref;
 
+#[cfg(not(feature = "no-entrypoint"))]
+use solana_security_txt::security_txt;
+
+#[cfg(not(feature = "no-entrypoint"))]
+security_txt! {
+    name: "openbook_twap",
+    project_url: "https://www.openbook-solana.com",
+    contacts: "discord:binye,discord:skrrb,email:soundsonacid@gmail.com,email:metaproph3t@protonmail.com",
+    source_code: "https://github.com/metaDAOproject/openbook-twap",
+    source_release: "v0",
+    auditors: "None"
+}
+
 const MAX_BPS: u16 = 10_000;
 const TWAP_MARKET: &[u8] = b"twap_market";
 

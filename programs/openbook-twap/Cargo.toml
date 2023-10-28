@@ -19,7 +19,8 @@ default = []
 anchor-lang = "^0.28.0"
 anchor-spl = "^0.28.0"
 openbook-v2 = { git = "https://github.com/openbook-dex/openbook-v2.git", features = ["cpi"] }
-#solana-program = "^0.14.12"
 solana-program = "~1.16.1"
 num = "^0.4.1"
 bytemuck = "1.14.0"
+solana-security-txt = "1.1.1"
+
