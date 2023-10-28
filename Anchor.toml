@@ -2,7 +2,7 @@
 seeds = false
 skip-lint = false
 [programs.localnet]
-openbook_twap = "4dchEcc6TTC4QVyZQUWgQgcdAsXrUBxsdxpu572BY3Y2"
+openbook_twap = "2qjEsiMtWxAdqUSdaGM28pJRMtodnnkHZEoadc6JcFCb"
 
 [[test.genesis]]
 address = "opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb"

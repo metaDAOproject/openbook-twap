@@ -8,7 +8,7 @@ use std::cell::Ref;
 const MAX_BPS: u16 = 10_000;
 const TWAP_MARKET: &[u8] = b"twap_market";
 
-declare_id!("4dchEcc6TTC4QVyZQUWgQgcdAsXrUBxsdxpu572BY3Y2");
+declare_id!("2qjEsiMtWxAdqUSdaGM28pJRMtodnnkHZEoadc6JcFCb");
 
 // `create_twap_market` that verifies that the `open_orders_authority` and
 // `close_market_admin` are set to `twap_market`, `time_expiry` == 0, store
@@ -267,6 +267,14 @@ pub struct CancelAndPlaceOrders<'info> {
     /// CHECK: verified in CPI
     pub token_program: UncheckedAccount<'info>,
     pub openbook_program: Program<'info, OpenbookV2>,
+}
+
+#[derive(Accounts)]
+pub struct GetBestBidAndAsk<'info> {
+    #[account(has_one = bids, has_one = asks)]
+    pub market: AccountLoader<'info, Market>,
+    pub bids: AccountLoader<'info, BookSide>,
+    pub asks: AccountLoader<'info, BookSide>,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Debug, Copy, Clone)]
@@ -661,6 +669,20 @@ pub mod openbook_twap {
         )?;
 
         Ok(retval.get())
+    }
+
+    pub fn get_best_bid_and_ask(ctx: Context<GetBestBidAndAsk>) -> Result<(u64, u64)> {
+        let bids = ctx.accounts.bids.load()?;
+        let asks = ctx.accounts.asks.load()?;
+
+        let clock = Clock::get()?;
+
+        let unix_ts: u64 = clock.unix_timestamp.try_into().unwrap();
+
+        let best_bid = bids.best_price(unix_ts, None).unwrap_or(0);
+        let best_ask = asks.best_price(unix_ts, None).unwrap_or(0);
+
+        Ok((best_bid as u64, best_ask as u64))
     }
 
 }
