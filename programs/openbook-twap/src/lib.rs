@@ -401,9 +401,18 @@ pub mod openbook_twap {
         let twap_market = &mut ctx.accounts.twap_market;
 
         require!(market.time_expiry == 0, OpenBookTWAPError::NonZeroExpiry);
-        require!(market.open_orders_admin == twap_market.key(), OpenBookTWAPError::InvalidOpenOrdersAdmin);
-        require!(market.close_market_admin == twap_market.key(), OpenBookTWAPError::InvalidCloseMarketAdmin);
-        require!(market.consume_events_admin.is_none(), OpenBookTWAPError::InvalidConsumeEventsAdmin);
+        require!(
+            market.open_orders_admin == twap_market.key(),
+            OpenBookTWAPError::InvalidOpenOrdersAdmin
+        );
+        require!(
+            market.close_market_admin == twap_market.key(),
+            OpenBookTWAPError::InvalidCloseMarketAdmin
+        );
+        require!(
+            market.consume_events_admin.is_none(),
+            OpenBookTWAPError::InvalidConsumeEventsAdmin
+        );
         require!(market.oracle_a.is_none(), OpenBookTWAPError::NoOracles);
         require!(market.oracle_b.is_none(), OpenBookTWAPError::NoOracles);
         require!(market.seq_num == 0, OpenBookTWAPError::InvalidSeqNum);
@@ -417,10 +426,6 @@ pub mod openbook_twap {
 
         Ok(())
     }
-
-    // Context<PlaceOrder> endpoints
-    // place_order
-    // edit_order
 
     pub fn place_order(
         ctx: Context<PlaceOrder>,
@@ -704,9 +709,13 @@ pub mod openbook_twap {
 
 #[error_code]
 pub enum OpenBookTWAPError {
-    #[msg("The `open_orders_admin` of the underlying market must be equal to the `TWAPMarket` PDA")]
+    #[msg(
+        "The `open_orders_admin` of the underlying market must be equal to the `TWAPMarket` PDA"
+    )]
     InvalidOpenOrdersAdmin,
-    #[msg("The `close_market_admin` of the underlying market must be equal to the `TWAPMarket` PDA")]
+    #[msg(
+        "The `close_market_admin` of the underlying market must be equal to the `TWAPMarket` PDA"
+    )]
     InvalidCloseMarketAdmin,
     #[msg("Market must not expire (have `time_expiry` == 0)")]
     NonZeroExpiry,
