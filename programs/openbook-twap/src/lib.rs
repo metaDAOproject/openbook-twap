@@ -87,7 +87,6 @@ impl TWAPOracle {
         let clock = Clock::get().unwrap();
 
         if self.last_observed_slot < clock.slot {
-            msg!("Last updated slot at slot: {:?} {:?}", clock.slot, self.last_updated_slot);
             self.last_observed_slot = clock.slot;
 
             let unix_ts: u64 = clock.unix_timestamp.try_into().unwrap();
@@ -95,18 +94,11 @@ impl TWAPOracle {
             let best_bid = bids.best_price(unix_ts, None);
             let best_ask = asks.best_price(unix_ts, None);
 
-            msg!("Best bid at slot: {:?} = {:?}", clock.slot, best_bid);
-            msg!("Best ask at slot: {:?} = {:?}", clock.slot, best_ask);
-
             if let (Some(best_bid), Some(best_ask)) = (best_bid, best_ask) {
                 // we use average_ceil because (best_bid + best_ask) / 2 can overflow
                 let spot_price = best_bid.average_ceil(&best_ask) as u64;
 
-                msg!("Spot price at slot: {:?} = {:?}", clock.slot, spot_price);
-
                 let last_observation = self.last_observation;
-
-                msg!("Last observation at slot: {:?} = {:?}", clock.slot, last_observation);
 
                 let observation = if spot_price > last_observation {
                     let max_observation = last_observation
@@ -228,9 +220,6 @@ pub struct PlaceTakeOrder<'info> {
     /// CHECK: verified in CPI
     #[account(mut)]
     pub user_quote_account: UncheckedAccount<'info>,
-    /// CHECK: verified in CPI
-    #[account(mut)]
-    pub referrer_account: Option<UncheckedAccount<'info>>,
     /// CHECK: verified in CPI
     pub token_program: UncheckedAccount<'info>,
     pub openbook_program: Program<'info, OpenbookV2>,
