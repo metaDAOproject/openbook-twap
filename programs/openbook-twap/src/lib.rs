@@ -671,7 +671,7 @@ pub mod openbook_twap {
         Ok(retval.get())
     }
 
-    pub fn get_best_bid_and_ask(ctx: Context<GetBestBidAndAsk>) -> Result<(u64, u64)> {
+    pub fn get_best_bid_and_ask(ctx: Context<GetBestBidAndAsk>) -> Result<Vec<u64>> { // would return a tuple but Anchor doesn't like it
         let bids = ctx.accounts.bids.load()?;
         let asks = ctx.accounts.asks.load()?;
 
@@ -682,7 +682,7 @@ pub mod openbook_twap {
         let best_bid = bids.best_price(unix_ts, None).unwrap_or(0);
         let best_ask = asks.best_price(unix_ts, None).unwrap_or(0);
 
-        Ok((best_bid as u64, best_ask as u64))
+        Ok(vec![best_bid as u64, best_ask as u64])
     }
 
 }
