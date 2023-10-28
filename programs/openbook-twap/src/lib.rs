@@ -3,34 +3,11 @@ use num::integer::Average;
 use openbook_v2::program::OpenbookV2;
 use openbook_v2::state::{BookSide, Market};
 use std::cell::Ref;
-//use openbook_v2::PlaceOrderArgs;
 
 const MAX_BPS: u16 = 10_000;
 const TWAP_MARKET: &[u8] = b"twap_market";
 
 declare_id!("2qjEsiMtWxAdqUSdaGM28pJRMtodnnkHZEoadc6JcFCb");
-
-// `create_twap_market` that verifies that the `open_orders_authority` and
-// `close_market_admin` are set to `twap_market`, `time_expiry` == 0, store
-// `base_lot_size` and `quote_lot_size`
-//
-// wrappers:
-// - place_order - PlaceOrder
-// - place_order_pegged - PlaceOrder
-// - edit_order - PlaceOrder
-// - edit_order_pegged - PlaceOrder
-// - cancel_and_place_orders - CancelAndPlaceOrders
-// - place_take_order - PlaceTakeOrder
-// - cancel_order - CancelOrder
-// - cancel_order_by_client_id - CancelOrder
-// - cancel_all_orders - CancelOrder
-// WRITTEN:
-// `place_order` that wraps `place_order`
-// `edit_order` that wraps `edit_order`
-// `cancel_order_by_client_id` that wraps `cancel_order_by_client_id`
-// `cancel_all_orders` that wraps `cancel_all_orders`
-// `place_take_order` that wraps `place_take_order`
-// `cancel_and_place_orders` that wraps `cancel_and_place_orders`
 
 #[account]
 pub struct TWAPMarket {
