@@ -1,8 +1,10 @@
 [package]
 name = "openbook-twap"
-version = "0.1.0"
-description = "Created with Anchor"
+version = "1.0.0"
+description = "A program that allows you to fetch on-chain TWAPs from OpenBook V2 markets."
 edition = "2021"
+license = "LGPL-3.0-or-later"
+repository = "https://github.com/metaDAOproject/openbook-twap"
 
 [lib]
 crate-type = ["cdylib", "lib"]
@@ -16,11 +18,11 @@ cpi = ["no-entrypoint"]
 default = []
 
 [dependencies]
-anchor-lang = "^0.28.0"
-anchor-spl = "^0.28.0"
-openbook-v2 = { git = "https://github.com/openbook-dex/openbook-v2.git", features = ["cpi"] }
-solana-program = "~1.16.1"
-num = "^0.4.1"
+anchor-lang = "0.28.0"
+anchor-spl = "0.28.0"
+openbook-v2 = { git = "https://github.com/openbook-dex/openbook-v2.git", tag = "v1.0", features = ["cpi"] }
+solana-program = "1.16.1"
+num = "0.4.1"
 bytemuck = "1.14.0"
 solana-security-txt = "1.1.1"
 

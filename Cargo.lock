@@ -1501,7 +1501,7 @@ checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
 name = "openbook-twap"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
@@ -1515,7 +1515,7 @@ dependencies = [
 [[package]]
 name = "openbook-v2"
 version = "0.1.0"
-source = "git+https://github.com/openbook-dex/openbook-v2.git#36206abd373adfa8769b5d1a2af7aa04d24d8c3d"
+source = "git+https://github.com/openbook-dex/openbook-v2.git?tag=v1.0#7873553af28fd183b5645944907fab62a4704984"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
