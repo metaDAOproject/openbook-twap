@@ -34,3 +34,5 @@ The program was compiled with [solana-verifiable-build](https://github.com/Ellip
 ```
 $ solana-verify verify-from-repo -um --program-id TWAP7frdvD3ia7TWc8e9SxZMmrpd2Yf3ifSPAHS8VG3 https://github.com/metaDAOproject/openbook-twap --library-name openbook_twap -b ellipsislabs/solana:1.16.9
 ```
+
+You can also see OtterSec's attestation of this verification [here](https://verify.osec.io/status/TWAP7frdvD3ia7TWc8e9SxZMmrpd2Yf3ifSPAHS8VG3).
