@@ -18,7 +18,9 @@ security_txt! {
     auditors: "None"
 }
 
-const MAX_BPS: u16 = 10_000;
+const ONE_HUNDRED_PERCENT_BPS: u16 = 10_000;
+/// TWAP observations can only increase by 1% per update
+const MAX_OBSERVATION_CHANGE_PER_UPDATE_BPS: u16 = 100;
 const TWAP_MARKET: &[u8] = b"twap_market";
 
 declare_id!("TWAP7frdvD3ia7TWc8e9SxZMmrpd2Yf3ifSPAHS8VG3");
@@ -48,33 +50,24 @@ pub struct TWAPOracle {
     pub last_observed_slot: u64,
     pub last_observation: u64,
     pub observation_aggregator: u128,
-    /// The most, in basis points, an observation can change per update.
-    /// For example, if it is 100 (1%), then the new observation can be between
-    /// last_observation * 0.99 and last_observation * 1.01
-    pub max_observation_change_per_update_bps: u16,
-    pub _padding: [u8; 6],
 }
 
-impl Default for TWAPOracle {
-    fn default() -> Self {
+impl TWAPOracle {
+    pub fn new(expected_value: u64) -> Self {
         // Get the current slot at TWAPOracle initialization - if this fails we'll load the default clock
         // Since the default Clock.slot is 0 (because slots are expressed as u64)
         // This will give us 0 as the slot which we had anyways
         let clock = Clock::get().unwrap_or(Clock::default());
         Self {
-            expected_value: 0,
+            expected_value,
             initial_slot: clock.slot,
             last_updated_slot: clock.slot,
-            last_observed_slot: 0,
-            last_observation: 0,
-            observation_aggregator: 0,
-            max_observation_change_per_update_bps: 100,
-            _padding: Default::default(),
+            last_observed_slot: clock.slot,
+            last_observation: expected_value,
+            observation_aggregator: expected_value as u128,
         }
     }
-}
 
-impl TWAPOracle {
     pub fn update_oracle(&mut self, bids: Ref<'_, BookSide>, asks: Ref<'_, BookSide>) {
         let clock = Clock::get().unwrap();
 
@@ -95,18 +88,18 @@ impl TWAPOracle {
                 let observation = if spot_price > last_observation {
                     let max_observation = last_observation
                         .saturating_mul(
-                            (MAX_BPS + self.max_observation_change_per_update_bps) as u64,
+                            (ONE_HUNDRED_PERCENT_BPS + MAX_OBSERVATION_CHANGE_PER_UPDATE_BPS) as u64,
                         )
-                        .saturating_div(MAX_BPS as u64)
+                        .saturating_div(ONE_HUNDRED_PERCENT_BPS as u64)
                         .saturating_add(1);
 
                     std::cmp::min(spot_price, max_observation)
                 } else {
                     let min_observation = last_observation
                         .saturating_mul(
-                            (MAX_BPS - self.max_observation_change_per_update_bps) as u64,
+                            (ONE_HUNDRED_PERCENT_BPS - MAX_OBSERVATION_CHANGE_PER_UPDATE_BPS) as u64,
                         )
-                        .saturating_div(MAX_BPS as u64);
+                        .saturating_div(ONE_HUNDRED_PERCENT_BPS as u64);
 
                     std::cmp::max(spot_price, min_observation)
                 };
@@ -377,6 +370,8 @@ impl From<Side> for openbook_v2::state::Side {
 pub mod openbook_twap {
     use super::*;
 
+    /// `expected_value` will be the first observation of the TWAP, which is
+    /// necessary for anti-manipulation
     pub fn create_twap_market(ctx: Context<CreateTWAPMarket>, expected_value: u64) -> Result<()> {
         let market = ctx.accounts.market.load()?;
         let twap_market = &mut ctx.accounts.twap_market;
@@ -402,8 +397,7 @@ pub mod openbook_twap {
 
         twap_market.pda_bump = *ctx.bumps.get("twap_market").unwrap();
         twap_market.market = ctx.accounts.market.key();
-        twap_market.twap_oracle = TWAPOracle::default();
-        twap_market.twap_oracle.expected_value = expected_value;
+        twap_market.twap_oracle = TWAPOracle::new(expected_value);
 
         Ok(())
     }
