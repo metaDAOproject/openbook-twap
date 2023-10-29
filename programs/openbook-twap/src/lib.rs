@@ -106,7 +106,7 @@ impl TWAPOracle {
 
                 msg!("Observation: {:?}", observation);
 
-                let weighted_observation = observation * (clock.slot - self.last_updated_slot);
+                let weighted_observation = observation as u128 * (clock.slot - self.last_updated_slot) as u128;
 
                 msg!(
                     "Weighted observation: {:?}",
@@ -115,7 +115,7 @@ impl TWAPOracle {
 
                 self.last_updated_slot = clock.slot;
                 self.last_observation = observation;
-                self.observation_aggregator += weighted_observation as u128;
+                self.observation_aggregator += weighted_observation;
             }
         }
     }
