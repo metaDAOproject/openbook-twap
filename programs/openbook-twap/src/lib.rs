@@ -111,13 +111,12 @@ impl TWAPOracle {
                     std::cmp::max(spot_price, min_observation)
                 };
 
-                msg!("Observation at slot: {:?} = {:?}", clock.slot, observation);
+                msg!("Observation: {:?}", observation);
 
                 let weighted_observation = observation * (clock.slot - self.last_updated_slot);
 
                 msg!(
-                    "Weighted observation at slot: {:?} = {:?}",
-                    clock.slot,
+                    "Weighted observation: {:?}",
                     weighted_observation
                 );
 
