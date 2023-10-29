@@ -88,7 +88,8 @@ impl TWAPOracle {
                 let observation = if spot_price > last_observation {
                     let max_observation = last_observation
                         .saturating_mul(
-                            (ONE_HUNDRED_PERCENT_BPS + MAX_OBSERVATION_CHANGE_PER_UPDATE_BPS) as u64,
+                            (ONE_HUNDRED_PERCENT_BPS + MAX_OBSERVATION_CHANGE_PER_UPDATE_BPS)
+                                as u64,
                         )
                         .saturating_div(ONE_HUNDRED_PERCENT_BPS as u64)
                         .saturating_add(1);
@@ -97,7 +98,8 @@ impl TWAPOracle {
                 } else {
                     let min_observation = last_observation
                         .saturating_mul(
-                            (ONE_HUNDRED_PERCENT_BPS - MAX_OBSERVATION_CHANGE_PER_UPDATE_BPS) as u64,
+                            (ONE_HUNDRED_PERCENT_BPS - MAX_OBSERVATION_CHANGE_PER_UPDATE_BPS)
+                                as u64,
                         )
                         .saturating_div(ONE_HUNDRED_PERCENT_BPS as u64);
 
@@ -106,12 +108,10 @@ impl TWAPOracle {
 
                 msg!("Observation: {:?}", observation);
 
-                let weighted_observation = observation as u128 * (clock.slot - self.last_updated_slot) as u128;
+                let weighted_observation =
+                    observation as u128 * (clock.slot - self.last_updated_slot) as u128;
 
-                msg!(
-                    "Weighted observation: {:?}",
-                    weighted_observation
-                );
+                msg!("Weighted observation: {:?}", weighted_observation);
 
                 self.last_updated_slot = clock.slot;
                 self.last_observation = observation;

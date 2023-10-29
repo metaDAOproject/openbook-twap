@@ -197,12 +197,12 @@ describe("openbook-twap", () => {
     };
 
     let takeArgs: PlaceTakeOrderArgs = {
-        side: Side.Bid,
-        priceLots: new BN(500),
-        maxBaseLots: new BN(1),
-        maxQuoteLotsIncludingFees: new BN(500),
-        orderType: OrderType.Market,
-        limit: 255,
+      side: Side.Bid,
+      priceLots: new BN(500),
+      maxBaseLots: new BN(1),
+      maxQuoteLotsIncludingFees: new BN(500),
+      orderType: OrderType.Market,
+      limit: 255,
     };
 
     let manipulatedBuyArgs: PlaceOrderArgs = {
