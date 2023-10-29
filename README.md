@@ -1,5 +1,7 @@
 # OpenBook TWAP
 
+![License LGPLv2.1](https://img.shields.io/badge/License-LGPLv2.1-violet.svg)
+
 A program that allows you to fetch on-chain TWAPs from OpenBook V2 markets.
 
 ## Oracle
