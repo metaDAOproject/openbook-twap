@@ -325,6 +325,24 @@ describe("openbook-twap", () => {
       }
     }
 
+    await openbookTwap.methods
+      .placeTakeOrder(takeArgs)
+      .accounts({
+        signer: payer.publicKey,
+        market,
+        asks: storedMarket.asks,
+        bids: storedMarket.bids,
+        eventHeap: storedMarket.eventHeap,
+        marketAuthority: storedMarket.marketAuthority,
+        marketBaseVault: storedMarket.marketBaseVault,
+        marketQuoteVault: storedMarket.marketQuoteVault,
+        userQuoteAccount: usdcAccount,
+        userBaseAccount: metaAccount,
+        twapMarket,
+        openbookProgram: OPENBOOK_PROGRAM_ID,
+      })
+      .rpc();
+
     let storedTwapMarket2 = await openbookTwap.account.twapMarket.fetch(
       twapMarket
     );
