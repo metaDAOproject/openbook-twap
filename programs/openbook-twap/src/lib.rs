@@ -80,6 +80,11 @@ impl TWAPOracle {
             let best_ask = asks.best_price(unix_ts, None);
 
             if let (Some(best_bid), Some(best_ask)) = (best_bid, best_ask) {
+                // we don't record prices if there's a spread of more than 20%
+                if best_ask > best_bid.saturating_mul(12).saturating_div(10) {
+                    return;
+                }
+
                 // we use average_ceil because (best_bid + best_ask) / 2 can overflow
                 let spot_price = best_bid.average_ceil(&best_ask) as u64;
 
