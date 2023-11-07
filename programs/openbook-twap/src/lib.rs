@@ -14,7 +14,7 @@ security_txt! {
     contacts: "discord:binye,discord:skrrb,email:soundsonacid@gmail.com,email:metaproph3t@protonmail.com",
     policy: "A bug bounty may or may not be awarded.",
     source_code: "https://github.com/metaDAOproject/openbook-twap",
-    source_release: "v0",
+    source_release: "v0.1",
     auditors: "None"
 }
 
@@ -23,7 +23,7 @@ const ONE_HUNDRED_PERCENT_BPS: u16 = 10_000;
 const MAX_OBSERVATION_CHANGE_PER_UPDATE_BPS: u16 = 100;
 const TWAP_MARKET: &[u8] = b"twap_market";
 
-declare_id!("TWAP7frdvD3ia7TWc8e9SxZMmrpd2Yf3ifSPAHS8VG3");
+declare_id!("TWAPrdhADy2aTKN5iFZtNnkQYXERD9NvKjPFVPMSCNN");
 
 #[account]
 pub struct TWAPMarket {
