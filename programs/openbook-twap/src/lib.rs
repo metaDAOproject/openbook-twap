@@ -54,10 +54,11 @@ pub struct TWAPOracle {
 
 impl TWAPOracle {
     pub fn new(expected_value: u64) -> Self {
-        // Get the current slot at TWAPOracle initialization - if this fails we'll load the default clock
-        // Since the default Clock.slot is 0 (because slots are expressed as u64)
-        // This will give us 0 as the slot which we had anyways
-        let clock = Clock::get().unwrap_or(Clock::default());
+        // Get the current slot at TWAPOracle initialization
+        // If we cannot get the clock the transaction should fail. Unwise to catch the error. 
+        // Starting with a time of 0 (initial solana blockchain slot) messes up later logic in unpredictable ways  
+        
+        let clock = Clock::get().unwrap(); 
         Self {
             expected_value,
             initial_slot: clock.slot,
