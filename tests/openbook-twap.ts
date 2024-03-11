@@ -57,7 +57,7 @@ describe("openbook-twap", () => {
       payer,
       mintAuthority.publicKey,
       null,
-      6
+      9
     );
 
     let USDC = await createMint(
@@ -130,7 +130,7 @@ describe("openbook-twap", () => {
     );
 
     await openbookTwap.methods
-      .createTwapMarket(new BN(550), 200)
+      .createTwapMarket(new BN(550), new BN(10))
       .accounts({
         market,
         twapMarket,

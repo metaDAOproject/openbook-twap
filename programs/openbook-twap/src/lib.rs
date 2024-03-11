@@ -18,7 +18,6 @@ security_txt! {
     auditors: "None"
 }
 
-const ONE_HUNDRED_PERCENT_BPS: u16 = 10_000;
 const TWAP_MARKET: &[u8] = b"twap_market";
 
 declare_id!("TWAPrdhADy2aTKN5iFZtNnkQYXERD9NvKjPFVPMSCNN");
@@ -48,11 +47,11 @@ pub struct TWAPOracle {
     pub last_observed_slot: u64,
     pub last_observation: u64,
     pub observation_aggregator: u128,
-    pub max_observation_change_per_update_bps: u16,
+    pub max_observation_change_per_update_lots: u64,
 }
 
 impl TWAPOracle {
-    pub fn new(expected_value: u64, max_observation_change_per_update_bps: u16) -> Self {
+    pub fn new(expected_value: u64, max_observation_change_per_update_lots: u64) -> Self {
         // Get the current slot at TWAPOracle initialization
         // If we cannot get the clock the transaction should fail. Unwise to catch the error.
         // Starting with a time of 0 (initial solana blockchain slot) messes up later logic in unpredictable ways
@@ -65,7 +64,7 @@ impl TWAPOracle {
             last_observed_slot: clock.slot,
             last_observation: expected_value,
             observation_aggregator: expected_value as u128,
-            max_observation_change_per_update_bps,
+            max_observation_change_per_update_lots,
         }
     }
 
@@ -93,21 +92,12 @@ impl TWAPOracle {
 
                 let observation = if spot_price > last_observation {
                     let max_observation = last_observation
-                        .saturating_mul(
-                            (ONE_HUNDRED_PERCENT_BPS + self.max_observation_change_per_update_bps)
-                                as u64,
-                        )
-                        .saturating_div(ONE_HUNDRED_PERCENT_BPS as u64)
-                        .saturating_add(1);
+                        .saturating_add(self.max_observation_change_per_update_lots);
 
                     std::cmp::min(spot_price, max_observation)
                 } else {
                     let min_observation = last_observation
-                        .saturating_mul(
-                            (ONE_HUNDRED_PERCENT_BPS - self.max_observation_change_per_update_bps)
-                                as u64,
-                        )
-                        .saturating_div(ONE_HUNDRED_PERCENT_BPS as u64);
+                        .saturating_sub(self.max_observation_change_per_update_lots);
 
                     std::cmp::max(spot_price, min_observation)
                 };
@@ -381,7 +371,7 @@ pub mod openbook_twap {
     pub fn create_twap_market(
         ctx: Context<CreateTWAPMarket>,
         expected_value: u64,
-        max_observation_change_per_update_bps: u16,
+        max_observation_change_per_update_bps: u64,
     ) -> Result<()> {
         let market = ctx.accounts.market.load()?;
         let twap_market = &mut ctx.accounts.twap_market;
