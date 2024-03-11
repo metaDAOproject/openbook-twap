@@ -16,7 +16,7 @@ import {
 import { expect, assert } from "chai";
 import { I80F48 } from "@blockworks-foundation/mango-client";
 
-const { PublicKey, Signer, Keypair, SystemProgram } = anchor.web3;
+const { PublicKey, Keypair, SystemProgram } = anchor.web3;
 const { BN, Program } = anchor;
 
 import { IDL, OpenbookV2 } from "./fixtures/openbook_v2";
@@ -27,7 +27,6 @@ import {
   createAssociatedTokenAccount,
   mintTo,
   getAccount,
-  mintToOverride,
   getMint,
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -46,17 +45,16 @@ describe("openbook-twap", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
   const connection = provider.connection;
-  const payer = provider.wallet.payer;
+  const payer = provider.wallet["payer"];
 
   const openbookTwap = anchor.workspace.OpenbookTwap as Program<OpenbookTwap>;
   const openbook = new OpenBookV2Client(provider);
-  const openbookProgram = new Program(IDL, OPENBOOK_PROGRAM_ID);
 
   it("Is initialized!", async () => {
     let mintAuthority = Keypair.generate();
     let META = await createMint(
       connection,
-      provider.wallet.payer,
+      payer,
       mintAuthority.publicKey,
       null,
       6
@@ -64,7 +62,7 @@ describe("openbook-twap", () => {
 
     let USDC = await createMint(
       connection,
-      provider.wallet.payer,
+      payer,
       mintAuthority.publicKey,
       null,
       6
@@ -72,21 +70,21 @@ describe("openbook-twap", () => {
 
     let usdcAccount = await createAccount(
       connection,
-      provider.wallet.payer,
+      payer,
       USDC,
-      provider.wallet.payer.publicKey
+      payer.publicKey
     );
 
     let metaAccount = await createAccount(
       connection,
-      provider.wallet.payer,
+      payer,
       META,
-      provider.wallet.payer.publicKey
+      payer.publicKey
     );
 
     await mintTo(
       connection,
-      provider.wallet.payer,
+      payer,
       META,
       metaAccount,
       mintAuthority,
@@ -95,7 +93,7 @@ describe("openbook-twap", () => {
 
     await mintTo(
       connection,
-      provider.wallet.payer,
+      payer,
       USDC,
       usdcAccount,
       mintAuthority,
@@ -113,7 +111,7 @@ describe("openbook-twap", () => {
     );
 
     let market = await openbook.createMarket(
-      provider.wallet.payer,
+      payer,
       "META/USDC",
       USDC,
       META,
