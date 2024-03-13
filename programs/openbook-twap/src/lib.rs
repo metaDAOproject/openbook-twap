@@ -20,7 +20,7 @@ security_txt! {
 
 const TWAP_MARKET: &[u8] = b"twap_market";
 
-declare_id!("TWAPrdhADy2aTKN5iFZtNnkQYXERD9NvKjPFVPMSCNN");
+declare_id!("twAP5sArq2vDS1mZCT7f4qRLwzTfHvf5Ay5R5Q5df1m");
 
 #[account]
 pub struct TWAPMarket {
