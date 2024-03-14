@@ -371,7 +371,7 @@ pub mod openbook_twap {
     pub fn create_twap_market(
         ctx: Context<CreateTWAPMarket>,
         expected_value: u64,
-        max_observation_change_per_update_bps: u64,
+        max_observation_change_per_update_lots: u64,
     ) -> Result<()> {
         let market = ctx.accounts.market.load()?;
         let twap_market = &mut ctx.accounts.twap_market;
@@ -398,7 +398,7 @@ pub mod openbook_twap {
         twap_market.pda_bump = *ctx.bumps.get("twap_market").unwrap();
         twap_market.market = ctx.accounts.market.key();
         twap_market.twap_oracle =
-            TWAPOracle::new(expected_value, max_observation_change_per_update_bps);
+            TWAPOracle::new(expected_value, max_observation_change_per_update_lots);
 
         Ok(())
     }
