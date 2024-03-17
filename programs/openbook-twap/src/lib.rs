@@ -22,7 +22,7 @@ const TWAP_MARKET: &[u8] = b"twap_market";
 
 declare_id!("twAP5sArq2vDS1mZCT7f4qRLwzTfHvf5Ay5R5Q5df1m");
 
-pub const TEN_DAYS_IN_SECONDS: i64 = 10  * 24 * 60 * 60;
+pub const TEN_DAYS_IN_SECONDS: i64 = 10 * 24 * 60 * 60;
 
 #[account]
 pub struct TWAPMarket {
@@ -379,7 +379,10 @@ pub mod openbook_twap {
         let twap_market = &mut ctx.accounts.twap_market;
 
         let current_time = clock::Clock::get().unwrap().unix_timestamp as i64;
-        require!(market.time_expiry > current_time + TEN_DAYS_IN_SECONDS, OpenBookTWAPError::InsufficentExpiryTime);
+        require!(
+            market.time_expiry > current_time + TEN_DAYS_IN_SECONDS,
+            OpenBookTWAPError::InsufficentExpiryTime
+        );
         require!(
             market.open_orders_admin == twap_market.key(),
             OpenBookTWAPError::InvalidOpenOrdersAdmin
