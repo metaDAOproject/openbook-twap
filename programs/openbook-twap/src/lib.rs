@@ -378,7 +378,7 @@ pub mod openbook_twap {
         let market = ctx.accounts.market.load()?;
         let twap_market = &mut ctx.accounts.twap_market;
 
-        let current_time = clock::Clock::get().unwrap().unix_timestamp as i64;
+        let current_time = Clock::get().unwrap().unix_timestamp as i64;
         require!(
             market.time_expiry > current_time + TEN_DAYS_IN_SECONDS,
             OpenBookTWAPError::InsufficentExpiryTime
