@@ -179,6 +179,24 @@ pub struct CancelOrder<'info> {
 }
 
 #[derive(Accounts)]
+pub struct PruneOrders<'info> {
+    // This is a permissionless function but could be made
+    // to require the close_market_rent_recipient's signature
+    // pub signer: Signer<'info>,
+    #[account(mut)]
+    pub twap_market: Account<'info, TWAPMarket>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub open_orders_account: UncheckedAccount<'info>,
+    pub market: AccountLoader<'info, Market>,
+    #[account(mut)]
+    pub bids: AccountLoader<'info, BookSide>,
+    #[account(mut)]
+    pub asks: AccountLoader<'info, BookSide>,
+    pub openbook_program: Program<'info, OpenbookV2>,
+}
+
+#[derive(Accounts)]
 pub struct PlaceTakeOrder<'info> {
     #[account(mut)]
     pub twap_market: Account<'info, TWAPMarket>,
@@ -400,7 +418,7 @@ pub mod openbook_twap {
         twap_market.market = ctx.accounts.market.key();
         twap_market.twap_oracle =
             TWAPOracle::new(expected_value, max_observation_change_per_update_lots);
-        twap_market.close_market_rent_receiver = ctx.accounts.payer;
+        twap_market.close_market_rent_receiver = ctx.accounts.payer.key();
 
         Ok(())
     }
