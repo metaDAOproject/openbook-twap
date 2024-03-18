@@ -197,7 +197,7 @@ pub struct PruneOrders<'info> {
 
 #[derive(Accounts)]
 pub struct CloseMarket<'info> {
-    // CHECK: This is a permissionless function but could be made to require the close_market_rent_receiver's signature
+    /// CHECK: This is a permissionless function but could be made to require the close_market_rent_receiver's signature
     #[account(mut)]
     pub close_market_rent_receiver: UncheckedAccount<'info>,
     #[account(has_one = close_market_rent_receiver)]
