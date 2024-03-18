@@ -27,6 +27,7 @@ pub struct TWAPMarket {
     pub market: Pubkey,
     pub pda_bump: u8,
     pub twap_oracle: TWAPOracle,
+    pub close_market_rent_receiver: Pubkey,
 }
 
 impl TWAPMarket {
@@ -399,6 +400,7 @@ pub mod openbook_twap {
         twap_market.market = ctx.accounts.market.key();
         twap_market.twap_oracle =
             TWAPOracle::new(expected_value, max_observation_change_per_update_lots);
+        twap_market.close_market_rent_receiver = ctx.accounts.payer;
 
         Ok(())
     }
