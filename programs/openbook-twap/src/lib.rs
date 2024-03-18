@@ -183,7 +183,6 @@ pub struct PruneOrders<'info> {
     // This is a permissionless function but could be made
     // to require the close_market_rent_recipient's signature
     // pub signer: Signer<'info>,
-    #[account(mut)]
     pub twap_market: Account<'info, TWAPMarket>,
     /// CHECK: verified in CPI
     #[account(mut)]
@@ -582,6 +581,31 @@ pub mod openbook_twap {
                 signer_seeds,
             ),
             cpi_side_option,
+            limit,
+        )?;
+
+        Ok(())
+    }
+
+    pub fn prune_orders(ctx: Context<PruneOrders>, limit: u8) -> Result<()> {
+        let market_key = ctx.accounts.market.key();
+
+        let seeds =
+            TWAPMarket::get_twap_market_seeds(&market_key, &ctx.accounts.twap_market.pda_bump);
+        let signer_seeds = &[&seeds[..]];
+
+        openbook_v2::cpi::prune_orders(
+            CpiContext::new_with_signer(
+                ctx.accounts.openbook_program.to_account_info(),
+                openbook_v2::cpi::accounts::PruneOrders {
+                    close_market_admin: ctx.accounts.twap_market.to_account_info(),
+                    open_orders_account: ctx.accounts.open_orders_account.to_account_info(),
+                    market: ctx.accounts.market.to_account_info(),
+                    bids: ctx.accounts.bids.to_account_info(),
+                    asks: ctx.accounts.asks.to_account_info(),
+                },
+                signer_seeds,
+            ),
             limit,
         )?;
 
