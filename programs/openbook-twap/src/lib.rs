@@ -181,7 +181,7 @@ pub struct CancelOrder<'info> {
 #[derive(Accounts)]
 pub struct PruneOrders<'info> {
     // This is a permissionless function but could be made
-    // to require the close_market_rent_recipient's signature
+    // to require the close_market_rent_receiver's signature
     // pub signer: Signer<'info>,
     pub twap_market: Account<'info, TWAPMarket>,
     /// CHECK: verified in CPI
@@ -192,6 +192,28 @@ pub struct PruneOrders<'info> {
     pub bids: AccountLoader<'info, BookSide>,
     #[account(mut)]
     pub asks: AccountLoader<'info, BookSide>,
+    pub openbook_program: Program<'info, OpenbookV2>,
+}
+
+#[derive(Accounts)]
+pub struct CloseMarket<'info> {
+    // CHECK: This is a permissionless function but could be made
+    // to require the close_market_rent_receiver's signature
+    #[account(mut)]
+    pub close_market_rent_receiver: UncheckedAccount<'info>,
+    #[account(has_one = close_market_rent_receiver)]
+    pub twap_market: Account<'info, TWAPMarket>,
+    #[account(mut)]
+    pub market: AccountLoader<'info, Market>,
+    #[account(mut)]
+    pub bids: AccountLoader<'info, BookSide>,
+    #[account(mut)]
+    pub asks: AccountLoader<'info, BookSide>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub event_heap: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    pub token_program: UncheckedAccount<'info>,
     pub openbook_program: Program<'info, OpenbookV2>,
 }
 
@@ -609,6 +631,31 @@ pub mod openbook_twap {
             limit,
         )?;
 
+        Ok(())
+    }
+
+    pub fn close_market<'info>(ctx: Context<CloseMarket>) -> Result<()> {
+        let market_key = ctx.accounts.market.key();
+
+        let seeds =
+            TWAPMarket::get_twap_market_seeds(&market_key, &ctx.accounts.twap_market.pda_bump);
+        let signer_seeds = &[&seeds[..]];
+
+        openbook_v2::cpi::close_market(
+            CpiContext::new_with_signer(
+                ctx.accounts.openbook_program.to_account_info(),
+                openbook_v2::cpi::accounts::CloseMarket {
+                    close_market_admin: ctx.accounts.twap_market.to_account_info(),
+                    market: ctx.accounts.market.to_account_info(),
+                    bids: ctx.accounts.bids.to_account_info(),
+                    asks: ctx.accounts.asks.to_account_info(),
+                    event_heap: ctx.accounts.event_heap.to_account_info(),
+                    sol_destination: ctx.accounts.close_market_rent_receiver.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                },
+                signer_seeds,
+            )
+        )?;
         Ok(())
     }
 
