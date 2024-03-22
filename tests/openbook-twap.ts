@@ -1,32 +1,39 @@
 import * as anchor from "@coral-xyz/anchor";
+import { BankrunProvider } from "anchor-bankrun";
+import { startAnchor, BanksClient } from "solana-bankrun";
 import { Program } from "@coral-xyz/anchor";
 import { OpenbookTwap } from "../target/types/openbook_twap";
 import {
   OpenBookV2Client,
-  BooksideSpace,
-  EventHeapSpace,
   PlaceOrderArgs,
   PlaceOrderPeggedArgs,
   Side,
   OrderType,
   SelfTradeBehavior,
-  PlaceTakeOrderArgs,
+  // PlaceTakeOrderArgs,
 } from "@openbook-dex/openbook-v2";
 
 import { expect, assert } from "chai";
 import { I80F48 } from "@blockworks-foundation/mango-client";
 
 const { PublicKey, Keypair, SystemProgram } = anchor.web3;
-const { BN, Program } = anchor;
-
-import { IDL, OpenbookV2 } from "./fixtures/openbook_v2";
+const { BN } = anchor;
 
 import {
   createMint,
   createAccount,
-  createAssociatedTokenAccount,
-  mintTo,
   getAccount,
+  mintTo,
+} from "spl-token-bankrun";
+
+// import { IDL, OpenbookV2 } from "./fixtures/openbook_v2";
+
+import {
+  // createMint,
+  // createAccount,
+  createAssociatedTokenAccount,
+  // mintTo,
+  // getAccount,
   getMint,
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -36,24 +43,45 @@ const OPENBOOK_PROGRAM_ID = new PublicKey(
   "opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb"
 );
 
-export type OpenBookProgram = Program<OpenBookIDL>;
+const OPENBOOK_TWAP_PROGRAM_ID = new PublicKey(
+  "twAP5sArq2vDS1mZCT7f4qRLwzTfHvf5Ay5R5Q5df1m"
+);
+
+const OpenbookTwapIDL: OpenbookTwap = require("../target/idl/openbook_twap.json");
+
+// export type OpenBookProgram = Program<OpenBookIDL>;
 
 const META_AMOUNT = 100n * 1_000_000_000n;
 const USDC_AMOUNT = 1000n * 1_000_000n;
 
 describe("openbook-twap", () => {
-  const provider = anchor.AnchorProvider.env();
-  anchor.setProvider(provider);
-  const connection = provider.connection;
-  const payer = provider.wallet["payer"];
+  let context, provider, banksClient: BanksClient, payer, openbookTwap, openbook: OpenBookV2Client;
 
-  const openbookTwap = anchor.workspace.OpenbookTwap as Program<OpenbookTwap>;
-  const openbook = new OpenBookV2Client(provider);
+  before(async () => {
+    context = await startAnchor("./", [
+      {
+          name: "openbook_v2",
+          programId: OPENBOOK_PROGRAM_ID,
+      },
+    ], []);
+    banksClient = context.banksClient;
+    provider = new BankrunProvider(context);
+    anchor.setProvider(provider);
+    payer = provider.wallet.payer;
+
+    openbookTwap = new anchor.Program<OpenbookTwap>(
+     OpenbookTwapIDL,
+     OPENBOOK_TWAP_PROGRAM_ID,
+     provider
+    );
+
+    openbook = new OpenBookV2Client(provider);
+  })
 
   it("Is initialized!", async () => {
     let mintAuthority = Keypair.generate();
     let META = await createMint(
-      connection,
+      banksClient,
       payer,
       mintAuthority.publicKey,
       null,
@@ -61,7 +89,7 @@ describe("openbook-twap", () => {
     );
 
     let USDC = await createMint(
-      connection,
+      banksClient,
       payer,
       mintAuthority.publicKey,
       null,
@@ -69,21 +97,21 @@ describe("openbook-twap", () => {
     );
 
     let usdcAccount = await createAccount(
-      connection,
+      banksClient,
       payer,
       USDC,
       payer.publicKey
     );
 
     let metaAccount = await createAccount(
-      connection,
+      banksClient,
       payer,
       META,
       payer.publicKey
     );
 
     await mintTo(
-      connection,
+      banksClient,
       payer,
       META,
       metaAccount,
@@ -92,7 +120,7 @@ describe("openbook-twap", () => {
     );
 
     await mintTo(
-      connection,
+      banksClient,
       payer,
       USDC,
       usdcAccount,
@@ -101,6 +129,7 @@ describe("openbook-twap", () => {
     );
 
     let marketKP = Keypair.generate();
+    let market = marketKP.publicKey;
 
     let [twapMarket] = PublicKey.findProgramAddressSync(
       [
@@ -110,8 +139,9 @@ describe("openbook-twap", () => {
       openbookTwap.programId
     );
 
-    let market = await openbook.createMarket(
-      payer,
+    let [createMarketIxs, createMarketSigners] =
+      await openbook.createMarketIx(
+      payer.publicKey,
       "META/USDC",
       USDC,
       META,
@@ -126,13 +156,19 @@ describe("openbook-twap", () => {
       null,
       twapMarket,
       { confFilter: 0.1, maxStalenessSlots: 100 },
-      marketKP
+      marketKP,
+      payer.publicKey
     );
+
+    let tx = new anchor.web3.Transaction().add(...createMarketIxs);
+    [tx.recentBlockhash] = await banksClient.getLatestBlockhash();
+    tx.feePayer = payer.publicKey;
+    await provider.sendAndConfirm(tx, createMarketSigners);
 
     await openbookTwap.methods
       .createTwapMarket(new BN(550), new BN(10))
       .accounts({
-        market,
+        market: marketKP.publicKey,
         twapMarket,
       })
       .rpc();
@@ -143,7 +179,7 @@ describe("openbook-twap", () => {
 
     assert.ok(storedTwapMarket.market.equals(market));
 
-    let storedMarket = await openbook.getMarket(market);
+    let storedMarket = await openbook.deserializeMarketAccount(market);
 
     let oos = [];
 
@@ -151,15 +187,15 @@ describe("openbook-twap", () => {
 
     for (let i = 0; i < Math.floor(NUM_ORDERS / 24); i++) {
       let openOrders = await openbook.createOpenOrders(
+        payer,
         market,
-        new BN(i + 1),
         `oo${i}`
       );
       oos.push(openOrders);
       console.log(`Created oo${i}`);
-      await openbook.deposit(
+      await openbook.depositIx(
         oos[i],
-        await openbook.getOpenOrders(oos[i]),
+        await openbook.deserializeOpenOrderAccount(oos[i]),
         storedMarket,
         metaAccount,
         usdcAccount,
@@ -169,6 +205,7 @@ describe("openbook-twap", () => {
 
       console.log(`Deposited to oo${i}`);
     }
+
 
     let buyArgs: PlaceOrderArgs = {
       side: Side.Bid,

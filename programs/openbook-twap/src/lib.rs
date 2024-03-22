@@ -415,7 +415,6 @@ pub mod openbook_twap {
         let market = ctx.accounts.market.load()?;
         let twap_market = &mut ctx.accounts.twap_market;
 
-        require!(market.time_expiry == 0, OpenBookTWAPError::NonZeroExpiry);
         require!(
             market.open_orders_admin == twap_market.key(),
             OpenBookTWAPError::InvalidOpenOrdersAdmin
@@ -783,8 +782,6 @@ pub enum OpenBookTWAPError {
         "The `close_market_admin` of the underlying market must be equal to the `TWAPMarket` PDA"
     )]
     InvalidCloseMarketAdmin,
-    #[msg("Market must not expire (have `time_expiry` == 0)")]
-    NonZeroExpiry,
     #[msg(
         "Oracle-pegged trades mess up the TWAP so oracles and oracle-pegged trades aren't allowed"
     )]
