@@ -55,28 +55,37 @@ const META_AMOUNT = 100n * 1_000_000_000n;
 const USDC_AMOUNT = 1000n * 1_000_000n;
 
 describe("openbook-twap", () => {
-  let context, provider, banksClient: BanksClient, payer, openbookTwap, openbook: OpenBookV2Client;
+  let context,
+    provider,
+    banksClient: BanksClient,
+    payer,
+    openbookTwap,
+    openbook: OpenBookV2Client;
 
   before(async () => {
-    context = await startAnchor("./", [
-      {
+    context = await startAnchor(
+      "./",
+      [
+        {
           name: "openbook_v2",
           programId: OPENBOOK_PROGRAM_ID,
-      },
-    ], []);
+        },
+      ],
+      []
+    );
     banksClient = context.banksClient;
     provider = new BankrunProvider(context);
     anchor.setProvider(provider);
     payer = provider.wallet.payer;
 
     openbookTwap = new anchor.Program<OpenbookTwap>(
-     OpenbookTwapIDL,
-     OPENBOOK_TWAP_PROGRAM_ID,
-     provider
+      OpenbookTwapIDL,
+      OPENBOOK_TWAP_PROGRAM_ID,
+      provider
     );
 
     openbook = new OpenBookV2Client(provider);
-  })
+  });
 
   it("Is initialized!", async () => {
     let mintAuthority = Keypair.generate();
@@ -139,8 +148,11 @@ describe("openbook-twap", () => {
       openbookTwap.programId
     );
 
-    let [createMarketIxs, createMarketSigners] =
-      await openbook.createMarketIx(
+    const currentTimeInSeconds = Math.floor(Date.now() / 1000);
+    const elevenDaysInSeconds = 11 * 24 * 60 * 60;
+    const expiryTime = new BN(currentTimeInSeconds + elevenDaysInSeconds);
+
+    let [createMarketIxs, createMarketSigners] = await openbook.createMarketIx(
       payer.publicKey,
       "META/USDC",
       USDC,
@@ -149,7 +161,7 @@ describe("openbook-twap", () => {
       new BN(1e9),
       new BN(0),
       new BN(0),
-      new BN(0),
+      expiryTime,
       null,
       null,
       twapMarket,
@@ -186,11 +198,7 @@ describe("openbook-twap", () => {
     const NUM_ORDERS = 96;
 
     for (let i = 0; i < Math.floor(NUM_ORDERS / 24); i++) {
-      let openOrders = await openbook.createOpenOrders(
-        payer,
-        market,
-        `oo${i}`
-      );
+      let openOrders = await openbook.createOpenOrders(payer, market, `oo${i}`);
       oos.push(openOrders);
       console.log(`Created oo${i}`);
       await openbook.depositIx(
@@ -205,7 +213,6 @@ describe("openbook-twap", () => {
 
       console.log(`Deposited to oo${i}`);
     }
-
 
     let buyArgs: PlaceOrderArgs = {
       side: Side.Bid,
