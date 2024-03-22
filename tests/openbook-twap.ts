@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { BankrunProvider } from "anchor-bankrun";
-import { startAnchor, BanksClient } from "solana-bankrun";
+import { startAnchor, BanksClient, Clock } from "solana-bankrun";
 import { Program } from "@coral-xyz/anchor";
 import { OpenbookTwap } from "../target/types/openbook_twap";
 import {
@@ -391,6 +391,81 @@ describe("openbook-twap", () => {
     console.log(
       "Final oracle observation = " +
         storedTwapMarket2.twapOracle.lastObservation.toNumber()
+    );
+
+    console.log("Jump ahead 11 days");
+    let currentClock = await context.banksClient.getClock();
+    let jumpAheadSlots = BigInt(elevenDaysInSeconds * 2.5);
+    const newSlot = currentClock.slot + jumpAheadSlots;
+    const newTime =
+      currentClock.unixTimestamp + BigInt(elevenDaysInSeconds + 10);
+    context.setClock(
+      new Clock(
+        newSlot,
+        currentClock.epochStartTimestamp,
+        currentClock.epoch,
+        currentClock.leaderScheduleEpoch,
+        newTime
+      )
+    );
+    currentClock = await context.banksClient.getClock();
+
+    for (let i = 0; i < oos.length; i++) {
+      await openbookTwap.methods
+        .pruneOrders(new BN(100))
+        .accounts({
+          twapMarket,
+          openOrdersAccount: oos[i],
+          market,
+          bids: storedMarket.bids,
+          asks: storedMarket.asks,
+          openbookProgram: OPENBOOK_PROGRAM_ID,
+        })
+        .rpc();
+
+      let [settleFundsIx, settleFundsSigners] = await openbook.settleFundsIx(
+        oos[i],
+        await openbook.deserializeOpenOrderAccount(oos[i]),
+        market,
+        await openbook.deserializeMarketAccount(market),
+        metaAccount,
+        usdcAccount,
+        null,
+        provider.publicKey
+      );
+
+      let settleTx = new anchor.web3.Transaction().add(settleFundsIx);
+      [settleTx.recentBlockhash] = await banksClient.getLatestBlockhash();
+      settleTx.feePayer = provider.publicKey;
+
+      await provider.sendAndConfirm(settleTx, settleFundsSigners);
+    }
+    // Fetch the current balance in lamports
+    const balanceBefore = await banksClient.getBalance(
+      provider.wallet.publicKey
+    );
+
+    await openbookTwap.methods
+      .closeMarket()
+      .accounts({
+        closeMarketRentReceiver: provider.publicKey,
+        twapMarket,
+        market,
+        bids: storedMarket.bids,
+        asks: storedMarket.asks,
+        eventHeap: storedMarket.eventHeap,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        openbookProgram: OPENBOOK_PROGRAM_ID,
+      })
+      .rpc();
+
+    const balanceAfter = await banksClient.getBalance(
+      provider.wallet.publicKey
+    );
+    console.log(
+      "Got back",
+      Number(balanceAfter - balanceBefore) / 1e9,
+      "SOL after closing the market"
     );
   });
 });
