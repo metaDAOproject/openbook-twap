@@ -1,5 +1,5 @@
 test:
-	(find programs && find tests) | entr -cs 'anchor test --skip-lint'
+	(find programs && find tests) | entr -cs 'anchor build && RUST_LOG= yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/*.ts'
 
 build:
 	solana-verify build --library-name openbook_twap -b ellipsislabs/solana:1.16.10
