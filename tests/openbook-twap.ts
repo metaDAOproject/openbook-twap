@@ -10,7 +10,7 @@ import {
   Side,
   OrderType,
   SelfTradeBehavior,
-  PlaceTakeOrderArgs,
+  // PlaceTakeOrderArgs,
 } from "@openbook-dex/openbook-v2";
 
 import { expect, assert } from "chai";
@@ -26,7 +26,7 @@ import {
   mintTo,
 } from "spl-token-bankrun";
 
-import { IDL, OpenbookV2 } from "./fixtures/openbook_v2";
+// import { IDL, OpenbookV2 } from "./fixtures/openbook_v2";
 
 import {
   // createMint,
@@ -187,16 +187,15 @@ describe("openbook-twap", () => {
 
     for (let i = 0; i < Math.floor(NUM_ORDERS / 24); i++) {
       let openOrders = await openbook.createOpenOrders(
+        payer,
         market,
-        new BN(i + 1),
         `oo${i}`
       );
-      return;
       oos.push(openOrders);
       console.log(`Created oo${i}`);
-      await openbook.deposit(
+      await openbook.depositIx(
         oos[i],
-        await openbook.getOpenOrders(oos[i]),
+        await openbook.deserializeOpenOrderAccount(oos[i]),
         storedMarket,
         metaAccount,
         usdcAccount,
@@ -206,6 +205,7 @@ describe("openbook-twap", () => {
 
       console.log(`Deposited to oo${i}`);
     }
+
 
     let buyArgs: PlaceOrderArgs = {
       side: Side.Bid,

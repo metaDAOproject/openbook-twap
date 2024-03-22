@@ -6,7 +6,7 @@
     "dependencies": {
         "@blockworks-foundation/mango-client": "^3.6.20",
         "@coral-xyz/anchor": "^0.29.0",
-        "@openbook-dex/openbook-v2": "^0.1.7",
+        "@openbook-dex/openbook-v2": "=0.1.7",
         "@solana/spl-token": "^0.3.8"
     },
     "devDependencies": {

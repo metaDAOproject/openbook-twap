@@ -103,10 +103,10 @@
   resolved "https://registry.yarnpkg.com/@noble/hashes/-/hashes-1.4.0.tgz#45814aa329f30e4fe0ba49426f49dfccdd066426"
   integrity sha512-V1JJ1WTRUqHHrOSh597hURcMqVKVGL/ea3kv0gSnEdsEZ0/+VyPghM1lMNGc00z7CIQorSvbKpuJkxvuHbvdbg==
 
-"@openbook-dex/openbook-v2@^0.1.7":
-  version "0.1.10"
-  resolved "https://registry.yarnpkg.com/@openbook-dex/openbook-v2/-/openbook-v2-0.1.10.tgz#8c7ba941d9d15376726864a0cfffd3561ed4778f"
-  integrity sha512-k462N5YwCPxWGWNxUGPwXxhdnObkiQKKhgzAk58S2nekkqeimChM2ljUk3Zd/qPOIgR4mtfVDvoMHrxJ0H6R9g==
+"@openbook-dex/openbook-v2@=0.1.7":
+  version "0.1.7"
+  resolved "https://registry.yarnpkg.com/@openbook-dex/openbook-v2/-/openbook-v2-0.1.7.tgz#55ae6a1bbc76faa84023cd59b6dfc759a886539b"
+  integrity sha512-dyL/q01BTmI+KtxjYfaHOat+JDppCIbqGiNQYFIFMqcawHlyXFaK/y4m3lR0A82iAOvr7+27z5FPtbAMWpyHHw==
   dependencies:
     "@coral-xyz/anchor" "^0.28.1-beta.2"
     "@solana/spl-token" "0.3.8"
