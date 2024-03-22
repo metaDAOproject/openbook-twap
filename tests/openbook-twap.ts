@@ -445,6 +445,34 @@ describe("openbook-twap", () => {
       provider.wallet.publicKey
     );
 
+    try {
+      // Try to retrieve rent with a random pubkey
+      await openbookTwap.methods
+        .closeMarket()
+        .accounts({
+          closeMarketRentReceiver: Keypair.generate().publicKey,
+          twapMarket,
+          market,
+          bids: storedMarket.bids,
+          asks: storedMarket.asks,
+          eventHeap: storedMarket.eventHeap,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          openbookProgram: OPENBOOK_PROGRAM_ID,
+        })
+        .rpc();
+      assert.fail("Expected a ConstraintHasOne error");
+    } catch (error) {
+      if ("error" in error && error.error.errorCode) {
+        assert.strictEqual(
+          error.error.errorCode.code,
+          "ConstraintHasOne",
+          "The error code matches ConstraintHasOne."
+        );
+      } else {
+        assert.fail(`Unexpected error structure: ${error}`);
+      }
+    }
+
     await openbookTwap.methods
       .closeMarket()
       .accounts({
@@ -462,9 +490,14 @@ describe("openbook-twap", () => {
     const balanceAfter = await banksClient.getBalance(
       provider.wallet.publicKey
     );
+    let balanceDifference = Number(balanceAfter - balanceBefore);
+    assert(
+      balanceDifference >= 1e9,
+      "Balance should have increased by at least 1 SOL"
+    );
     console.log(
       "Got back",
-      Number(balanceAfter - balanceBefore) / 1e9,
+      balanceDifference / 1e9,
       "SOL after closing the market"
     );
   });
