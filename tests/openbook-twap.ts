@@ -110,10 +110,6 @@ describe("openbook-twap", () => {
       openbookTwap.programId
     );
 
-    const currentTimeInSeconds = Math.floor(Date.now() / 1000);
-    const elevenDaysInSeconds = 11 * 24 * 60 * 60;
-    const expiryTime = new BN(currentTimeInSeconds + elevenDaysInSeconds);
-
     let market = await openbook.createMarket(
       payer,
       "META/USDC",
@@ -123,7 +119,7 @@ describe("openbook-twap", () => {
       new BN(1e9),
       new BN(0),
       new BN(0),
-      expiryTime,
+      new BN(0),
       null,
       null,
       twapMarket,

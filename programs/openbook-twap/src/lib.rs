@@ -22,8 +22,6 @@ const TWAP_MARKET: &[u8] = b"twap_market";
 
 declare_id!("twAP5sArq2vDS1mZCT7f4qRLwzTfHvf5Ay5R5Q5df1m");
 
-pub const TEN_DAYS_IN_SECONDS: i64 = 10 * 24 * 60 * 60;
-
 #[account]
 pub struct TWAPMarket {
     pub market: Pubkey,
@@ -378,11 +376,7 @@ pub mod openbook_twap {
         let market = ctx.accounts.market.load()?;
         let twap_market = &mut ctx.accounts.twap_market;
 
-        let current_time = Clock::get().unwrap().unix_timestamp as i64;
-        require!(
-            market.time_expiry > current_time + TEN_DAYS_IN_SECONDS,
-            OpenBookTWAPError::InsufficentExpiryTime
-        );
+        require!(market.time_expiry == 0, OpenBookTWAPError::NonZeroExpiry);
         require!(
             market.open_orders_admin == twap_market.key(),
             OpenBookTWAPError::InvalidOpenOrdersAdmin
@@ -699,8 +693,8 @@ pub enum OpenBookTWAPError {
         "The `close_market_admin` of the underlying market must be equal to the `TWAPMarket` PDA"
     )]
     InvalidCloseMarketAdmin,
-    #[msg("Market must expire a minimum of 10 days from now")]
-    InsufficentExpiryTime,
+    #[msg("Market must not expire (have `time_expiry` == 0)")]
+    NonZeroExpiry,
     #[msg(
         "Oracle-pegged trades mess up the TWAP so oracles and oracle-pegged trades aren't allowed"
     )]
