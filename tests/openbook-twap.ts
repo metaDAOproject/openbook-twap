@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { BankrunProvider } from "anchor-bankrun";
-import { startAnchor, BanksClient } from "solana-bankrun";
+import { startAnchor, BanksClient, Clock } from "solana-bankrun";
 import { Program } from "@coral-xyz/anchor";
 import { OpenbookTwap } from "../target/types/openbook_twap";
 import {
@@ -55,28 +55,37 @@ const META_AMOUNT = 100n * 1_000_000_000n;
 const USDC_AMOUNT = 1000n * 1_000_000n;
 
 describe("openbook-twap", () => {
-  let context, provider, banksClient: BanksClient, payer, openbookTwap, openbook: OpenBookV2Client;
+  let context,
+    provider,
+    banksClient: BanksClient,
+    payer,
+    openbookTwap,
+    openbook: OpenBookV2Client;
 
   before(async () => {
-    context = await startAnchor("./", [
-      {
+    context = await startAnchor(
+      "./",
+      [
+        {
           name: "openbook_v2",
           programId: OPENBOOK_PROGRAM_ID,
-      },
-    ], []);
+        },
+      ],
+      []
+    );
     banksClient = context.banksClient;
     provider = new BankrunProvider(context);
     anchor.setProvider(provider);
     payer = provider.wallet.payer;
 
     openbookTwap = new anchor.Program<OpenbookTwap>(
-     OpenbookTwapIDL,
-     OPENBOOK_TWAP_PROGRAM_ID,
-     provider
+      OpenbookTwapIDL,
+      OPENBOOK_TWAP_PROGRAM_ID,
+      provider
     );
 
     openbook = new OpenBookV2Client(provider);
-  })
+  });
 
   it("Is initialized!", async () => {
     let mintAuthority = Keypair.generate();
@@ -139,8 +148,11 @@ describe("openbook-twap", () => {
       openbookTwap.programId
     );
 
-    let [createMarketIxs, createMarketSigners] =
-      await openbook.createMarketIx(
+    const currentTimeInSeconds = Math.floor(Date.now() / 1000);
+    const elevenDaysInSeconds = 11 * 24 * 60 * 60;
+    const expiryTime = new BN(currentTimeInSeconds + elevenDaysInSeconds);
+
+    let [createMarketIxs, createMarketSigners] = await openbook.createMarketIx(
       payer.publicKey,
       "META/USDC",
       USDC,
@@ -149,7 +161,7 @@ describe("openbook-twap", () => {
       new BN(1e9),
       new BN(0),
       new BN(0),
-      new BN(0),
+      expiryTime,
       null,
       null,
       twapMarket,
@@ -186,11 +198,7 @@ describe("openbook-twap", () => {
     const NUM_ORDERS = 96;
 
     for (let i = 0; i < Math.floor(NUM_ORDERS / 24); i++) {
-      let openOrders = await openbook.createOpenOrders(
-        payer,
-        market,
-        `oo${i}`
-      );
+      let openOrders = await openbook.createOpenOrders(payer, market, `oo${i}`);
       oos.push(openOrders);
       console.log(`Created oo${i}`);
       await openbook.depositIx(
@@ -205,7 +213,6 @@ describe("openbook-twap", () => {
 
       console.log(`Deposited to oo${i}`);
     }
-
 
     let buyArgs: PlaceOrderArgs = {
       side: Side.Bid,
@@ -384,6 +391,114 @@ describe("openbook-twap", () => {
     console.log(
       "Final oracle observation = " +
         storedTwapMarket2.twapOracle.lastObservation.toNumber()
+    );
+
+    console.log("Jump ahead 11 days");
+    let currentClock = await context.banksClient.getClock();
+    let jumpAheadSlots = BigInt(elevenDaysInSeconds * 2.5);
+    const newSlot = currentClock.slot + jumpAheadSlots;
+    const newTime =
+      currentClock.unixTimestamp + BigInt(elevenDaysInSeconds + 10);
+    context.setClock(
+      new Clock(
+        newSlot,
+        currentClock.epochStartTimestamp,
+        currentClock.epoch,
+        currentClock.leaderScheduleEpoch,
+        newTime
+      )
+    );
+    currentClock = await context.banksClient.getClock();
+
+    for (let i = 0; i < oos.length; i++) {
+      await openbookTwap.methods
+        .pruneOrders(new BN(100))
+        .accounts({
+          twapMarket,
+          openOrdersAccount: oos[i],
+          market,
+          bids: storedMarket.bids,
+          asks: storedMarket.asks,
+          openbookProgram: OPENBOOK_PROGRAM_ID,
+        })
+        .rpc();
+
+      let [settleFundsIx, settleFundsSigners] = await openbook.settleFundsIx(
+        oos[i],
+        await openbook.deserializeOpenOrderAccount(oos[i]),
+        market,
+        await openbook.deserializeMarketAccount(market),
+        metaAccount,
+        usdcAccount,
+        null,
+        provider.publicKey
+      );
+
+      let settleTx = new anchor.web3.Transaction().add(settleFundsIx);
+      [settleTx.recentBlockhash] = await banksClient.getLatestBlockhash();
+      settleTx.feePayer = provider.publicKey;
+
+      await provider.sendAndConfirm(settleTx, settleFundsSigners);
+    }
+    // Fetch the current balance in lamports
+    const balanceBefore = await banksClient.getBalance(
+      provider.wallet.publicKey
+    );
+
+    try {
+      // Try to retrieve rent with a random pubkey
+      await openbookTwap.methods
+        .closeMarket()
+        .accounts({
+          closeMarketRentReceiver: Keypair.generate().publicKey,
+          twapMarket,
+          market,
+          bids: storedMarket.bids,
+          asks: storedMarket.asks,
+          eventHeap: storedMarket.eventHeap,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          openbookProgram: OPENBOOK_PROGRAM_ID,
+        })
+        .rpc();
+      assert.fail("Expected a ConstraintHasOne error");
+    } catch (error) {
+      if ("error" in error && error.error.errorCode) {
+        assert.strictEqual(
+          error.error.errorCode.code,
+          "ConstraintHasOne",
+          "The error code matches ConstraintHasOne."
+        );
+      } else {
+        assert.fail(`Unexpected error structure: ${error}`);
+      }
+    }
+
+    await openbookTwap.methods
+      .closeMarket()
+      .accounts({
+        closeMarketRentReceiver: provider.publicKey,
+        twapMarket,
+        market,
+        bids: storedMarket.bids,
+        asks: storedMarket.asks,
+        eventHeap: storedMarket.eventHeap,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        openbookProgram: OPENBOOK_PROGRAM_ID,
+      })
+      .rpc();
+
+    const balanceAfter = await banksClient.getBalance(
+      provider.wallet.publicKey
+    );
+    let balanceDifference = Number(balanceAfter - balanceBefore);
+    assert(
+      balanceDifference >= 1e9,
+      "Balance should have increased by at least 1 SOL"
+    );
+    console.log(
+      "Got back",
+      balanceDifference / 1e9,
+      "SOL after closing the market"
     );
   });
 });

@@ -27,6 +27,7 @@ pub struct TWAPMarket {
     pub market: Pubkey,
     pub pda_bump: u8,
     pub twap_oracle: TWAPOracle,
+    pub close_market_rent_receiver: Pubkey,
 }
 
 impl TWAPMarket {
@@ -174,6 +175,41 @@ pub struct CancelOrder<'info> {
     pub bids: AccountLoader<'info, BookSide>,
     #[account(mut)]
     pub asks: AccountLoader<'info, BookSide>,
+    pub openbook_program: Program<'info, OpenbookV2>,
+}
+
+#[derive(Accounts)]
+pub struct PruneOrders<'info> {
+    pub twap_market: Account<'info, TWAPMarket>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub open_orders_account: UncheckedAccount<'info>,
+    pub market: AccountLoader<'info, Market>,
+    #[account(mut)]
+    pub bids: AccountLoader<'info, BookSide>,
+    #[account(mut)]
+    pub asks: AccountLoader<'info, BookSide>,
+    pub openbook_program: Program<'info, OpenbookV2>,
+}
+
+#[derive(Accounts)]
+pub struct CloseMarket<'info> {
+    /// CHECK: This is a permissionless function but could be made to require the close_market_rent_receiver's signature
+    #[account(mut)]
+    pub close_market_rent_receiver: UncheckedAccount<'info>,
+    #[account(has_one = close_market_rent_receiver)]
+    pub twap_market: Account<'info, TWAPMarket>,
+    #[account(mut)]
+    pub market: AccountLoader<'info, Market>,
+    #[account(mut)]
+    pub bids: AccountLoader<'info, BookSide>,
+    #[account(mut)]
+    pub asks: AccountLoader<'info, BookSide>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub event_heap: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    pub token_program: UncheckedAccount<'info>,
     pub openbook_program: Program<'info, OpenbookV2>,
 }
 
@@ -398,6 +434,7 @@ pub mod openbook_twap {
         twap_market.market = ctx.accounts.market.key();
         twap_market.twap_oracle =
             TWAPOracle::new(expected_value, max_observation_change_per_update_lots);
+        twap_market.close_market_rent_receiver = ctx.accounts.payer.key();
 
         Ok(())
     }
@@ -564,6 +601,56 @@ pub mod openbook_twap {
             limit,
         )?;
 
+        Ok(())
+    }
+
+    pub fn prune_orders(ctx: Context<PruneOrders>, limit: u8) -> Result<()> {
+        let market_key = ctx.accounts.market.key();
+
+        let seeds =
+            TWAPMarket::get_twap_market_seeds(&market_key, &ctx.accounts.twap_market.pda_bump);
+        let signer_seeds = &[&seeds[..]];
+
+        openbook_v2::cpi::prune_orders(
+            CpiContext::new_with_signer(
+                ctx.accounts.openbook_program.to_account_info(),
+                openbook_v2::cpi::accounts::PruneOrders {
+                    close_market_admin: ctx.accounts.twap_market.to_account_info(),
+                    open_orders_account: ctx.accounts.open_orders_account.to_account_info(),
+                    market: ctx.accounts.market.to_account_info(),
+                    bids: ctx.accounts.bids.to_account_info(),
+                    asks: ctx.accounts.asks.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            limit,
+        )?;
+
+        Ok(())
+    }
+
+    pub fn close_market<'info>(ctx: Context<CloseMarket>) -> Result<()> {
+        let market_key = ctx.accounts.market.key();
+
+        let seeds =
+            TWAPMarket::get_twap_market_seeds(&market_key, &ctx.accounts.twap_market.pda_bump);
+        let signer_seeds = &[&seeds[..]];
+
+        openbook_v2::cpi::close_market(
+            CpiContext::new_with_signer(
+                ctx.accounts.openbook_program.to_account_info(),
+                openbook_v2::cpi::accounts::CloseMarket {
+                    close_market_admin: ctx.accounts.twap_market.to_account_info(),
+                    market: ctx.accounts.market.to_account_info(),
+                    bids: ctx.accounts.bids.to_account_info(),
+                    asks: ctx.accounts.asks.to_account_info(),
+                    event_heap: ctx.accounts.event_heap.to_account_info(),
+                    sol_destination: ctx.accounts.close_market_rent_receiver.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                },
+                signer_seeds,
+            )
+        )?;
         Ok(())
     }
 
