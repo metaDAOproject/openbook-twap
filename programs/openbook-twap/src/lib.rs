@@ -180,9 +180,6 @@ pub struct CancelOrder<'info> {
 
 #[derive(Accounts)]
 pub struct PruneOrders<'info> {
-    // This is a permissionless function but could be made
-    // to require the close_market_rent_receiver's signature
-    // pub signer: Signer<'info>,
     pub twap_market: Account<'info, TWAPMarket>,
     /// CHECK: verified in CPI
     #[account(mut)]
