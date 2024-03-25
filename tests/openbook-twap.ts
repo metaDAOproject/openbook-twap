@@ -423,22 +423,21 @@ describe("openbook-twap", () => {
         })
         .rpc();
 
-      let [settleFundsIx, settleFundsSigners] = await openbook.settleFundsIx(
-        oos[i],
-        await openbook.deserializeOpenOrderAccount(oos[i]),
-        market,
-        await openbook.deserializeMarketAccount(market),
-        metaAccount,
-        usdcAccount,
-        null,
-        provider.publicKey
-      );
-
-      let settleTx = new anchor.web3.Transaction().add(settleFundsIx);
-      [settleTx.recentBlockhash] = await banksClient.getLatestBlockhash();
-      settleTx.feePayer = provider.publicKey;
-
-      await provider.sendAndConfirm(settleTx, settleFundsSigners);
+      await openbookTwap.methods
+        .settleFundsExpired()
+        .accounts({
+          twapMarket,
+          openOrdersAccount: oos[i],
+          market,
+          marketAuthority: storedMarket.marketAuthority,
+          marketBaseVault: storedMarket.marketBaseVault,
+          marketQuoteVault: storedMarket.marketQuoteVault,
+          userBaseAccount: metaAccount,
+          userQuoteAccount: usdcAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          openbookProgram: OPENBOOK_PROGRAM_ID,
+        })
+        .rpc();
     }
     // Fetch the current balance in lamports
     const balanceBefore = await banksClient.getBalance(
