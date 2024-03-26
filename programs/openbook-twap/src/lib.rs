@@ -193,6 +193,35 @@ pub struct PruneOrders<'info> {
 }
 
 #[derive(Accounts)]
+pub struct SettleFundsExpired<'info> {
+    #[account(mut)]
+    pub twap_market: Account<'info, TWAPMarket>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub open_orders_account: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub market: AccountLoader<'info, Market>,
+    /// CHECK: verified in CPI
+    pub market_authority: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub market_base_vault: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub market_quote_vault: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub user_base_account: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub user_quote_account: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    pub token_program: UncheckedAccount<'info>,
+    pub openbook_program: Program<'info, OpenbookV2>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 pub struct CloseMarket<'info> {
     /// CHECK: This is a permissionless function but could be made to require the close_market_rent_receiver's signature
     #[account(mut)]
@@ -624,6 +653,38 @@ pub mod openbook_twap {
                 signer_seeds,
             ),
             limit,
+        )?;
+
+        Ok(())
+    }
+
+    pub fn settle_funds_expired(ctx: Context<SettleFundsExpired>) -> Result<()> {
+        let market_key = ctx.accounts.market.key();
+
+        let seeds =
+            TWAPMarket::get_twap_market_seeds(&market_key, &ctx.accounts.twap_market.pda_bump);
+        let signer_seeds = &[&seeds[..]];
+
+        openbook_v2::cpi::settle_funds_expired(
+            CpiContext::new_with_signer(
+                ctx.accounts.openbook_program.to_account_info(),
+                openbook_v2::cpi::accounts::SettleFundsExpired {
+                    close_market_admin: ctx.accounts.twap_market.to_account_info(),
+                    owner: ctx.accounts.twap_market.to_account_info(), // Placeholder for the owner signer account
+                    penalty_payer: ctx.accounts.twap_market.to_account_info(), // Placeholder for the penalty payer signer account
+                    open_orders_account: ctx.accounts.open_orders_account.to_account_info(),
+                    market: ctx.accounts.market.to_account_info(),
+                    market_authority: ctx.accounts.market_authority.to_account_info(),
+                    market_base_vault: ctx.accounts.market_base_vault.to_account_info(),
+                    market_quote_vault: ctx.accounts.market_quote_vault.to_account_info(),
+                    user_base_account: ctx.accounts.user_base_account.to_account_info(),
+                    user_quote_account: ctx.accounts.user_quote_account.to_account_info(),
+                    referrer_account: None,
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                    system_program: ctx.accounts.system_program.to_account_info(),
+                },
+                signer_seeds,
+            ),
         )?;
 
         Ok(())
