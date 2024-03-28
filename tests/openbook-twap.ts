@@ -282,6 +282,19 @@ describe("openbook-twap", () => {
         .rpc();
     }
 
+    async function cancelOrderByClientId(clientId: number) {
+      await openbookTwap.methods.cancelOrderByClientId(new BN(clientId))
+      .accounts({
+        twapMarket,
+        openOrdersAccount: oos[0],
+        market,
+        bids: storedMarket.bids,
+        asks: storedMarket.asks,
+        openbookProgram: OPENBOOK_PROGRAM_ID,
+      })
+      .rpc();
+    }
+
     async function advanceSlots(slots: number) {
       let storedClock = await context.banksClient.getClock();
       context.setClock(
@@ -305,7 +318,7 @@ describe("openbook-twap", () => {
     storedTwapMarket = await openbookTwap.account.twapMarket.fetch(twapMarket);
     assert(storedTwapMarket.twapOracle.lastObservation.eqn(50 * 10_000));
 
-    await placeOrder({side: Side.Ask, priceLots: 50 * 10_000, clientOrderId: 2});
+    await placeOrder({side: Side.Ask, priceLots: 50 * 10_000, clientOrderId: 3});
 
     // pre-crank, it should still be the same
     storedTwapMarket = await openbookTwap.account.twapMarket.fetch(twapMarket);
@@ -318,209 +331,63 @@ describe("openbook-twap", () => {
     storedTwapMarket = await openbookTwap.account.twapMarket.fetch(twapMarket);
     assert(storedTwapMarket.twapOracle.lastObservation.eqn(495 * 1_000));
 
-    return;
+    // cancel the ask, it should go back to $50
+    await cancelOrderByClientId(3);
 
+    await advanceSlots(1);
+    await crank();
 
-    let tradeArgs: PlaceOrderArgs = {
-      side: Side.Bid,
-      priceLots: new BN(540), // 1 META for 1 USDC
-      maxBaseLots: new BN(1),
-      maxQuoteLotsIncludingFees: new BN(540),
-      clientOrderId: new BN(1),
-      orderType: OrderType.Limit,
-      expiryTimestamp: new BN(0),
-      selfTradeBehavior: SelfTradeBehavior.DecrementTake,
-      limit: 255,
-    };
+    storedTwapMarket = await openbookTwap.account.twapMarket.fetch(twapMarket);
+    assert(storedTwapMarket.twapOracle.lastObservation.eqn(50 * 10_000));
 
-    let buyArgs: PlaceOrderArgs = {
-      side: Side.Bid,
-      priceLots: new BN(540), // 1 META for 1 USDC
-      maxBaseLots: new BN(1),
-      maxQuoteLotsIncludingFees: new BN(540),
-      clientOrderId: new BN(1),
-      orderType: OrderType.Limit,
-      expiryTimestamp: new BN(0),
-      selfTradeBehavior: SelfTradeBehavior.DecrementTake,
-      limit: 255,
-    };
+    // reset, place high bid & ask, expect it to move $1 away
+    await cancelOrderByClientId(1);
+    await cancelOrderByClientId(2);
 
-    let sellArgs: PlaceOrderArgs = {
-      side: Side.Ask,
-      priceLots: new BN(550), // 1 META for 1.2 USDC
-      maxBaseLots: new BN(1),
-      maxQuoteLotsIncludingFees: new BN(550),
-      clientOrderId: new BN(2),
-      orderType: OrderType.Limit,
-      expiryTimestamp: new BN(0),
-      selfTradeBehavior: SelfTradeBehavior.DecrementTake,
-      limit: 255,
-    };
+    await placeOrder({side: Side.Bid, priceLots: 100 * 10_000, clientOrderId: 1});
+    await placeOrder({side: Side.Ask, priceLots: 105 * 10_000, clientOrderId: 2});
 
-    let takeArgs: PlaceTakeOrderArgs = {
-      side: Side.Bid,
-      priceLots: new BN(500),
-      maxBaseLots: new BN(1),
-      maxQuoteLotsIncludingFees: new BN(500),
-      orderType: OrderType.Market,
-      limit: 255,
-    };
+    await advanceSlots(1);
+    await crank();
+    
+    storedTwapMarket = await openbookTwap.account.twapMarket.fetch(twapMarket);
+    assert(storedTwapMarket.twapOracle.lastObservation.eqn(51 * 10_000));
 
-    let manipulatedBuyArgs: PlaceOrderArgs = {
-      side: Side.Bid,
-      priceLots: new BN(1),
-      maxBaseLots: new BN(1),
-      maxQuoteLotsIncludingFees: new BN(500),
-      clientOrderId: new BN(1),
-      orderType: OrderType.Limit,
-      expiryTimestamp: new BN(0),
-      selfTradeBehavior: SelfTradeBehavior.DecrementTake,
-      limit: 255,
-    };
+    // 50 + 50 + 49.5 + 50 + 51 = 250.5
+    // 250.5 / 5 = 50.1
+    let TWAP = storedTwapMarket.twapOracle.observationAggregator.div(storedTwapMarket.twapOracle.lastUpdatedSlot.sub(storedTwapMarket.twapOracle.initialSlot).addn(1)).toNumber()
+    assert(TWAP / 10_000 == 50.1);
 
-    let manipulatedSellArgs: PlaceOrderArgs = {
-      side: Side.Ask,
-      priceLots: new BN(100_000_000_000_000),
-      maxBaseLots: new BN(1),
-      maxQuoteLotsIncludingFees: new BN(550),
-      clientOrderId: new BN(2),
-      orderType: OrderType.Limit,
-      expiryTimestamp: new BN(0),
-      selfTradeBehavior: SelfTradeBehavior.DecrementTake,
-      limit: 255,
-    };
+    await advanceSlots(1);
+    await crank();
 
-    for (let i = 0; i < oos.length; i++) {
-      for (let j = 0; j < 12; j++) {
-        let idx: number = j + i * 12;
+    storedTwapMarket = await openbookTwap.account.twapMarket.fetch(twapMarket);
+    assert(storedTwapMarket.twapOracle.lastObservation.eqn(52 * 10_000));
 
-        let currentClock = await context.banksClient.getClock();
-        let newSlot = currentClock.slot + 216_000n; // 1 day
-        context.setClock(
-          new Clock(
-            newSlot,
-            currentClock.epochStartTimestamp,
-            currentClock.epoch,
-            currentClock.leaderScheduleEpoch,
-            currentClock.unixTimestamp
-          )
-        );
+    // 50 + 50 + 49.5 + 50 + 51 + 52 = 302.5
+    // 302.5 / 6 = 50.416666
+    TWAP = storedTwapMarket.twapOracle.observationAggregator.div(storedTwapMarket.twapOracle.lastUpdatedSlot.sub(storedTwapMarket.twapOracle.initialSlot).addn(1)).toNumber()
+    assert((TWAP / 10_000) > 50.416);
+    assert((TWAP / 10_000) < 50.417);
 
-        if (i > 0 && i % 2 == 0) {
-          await openbookTwap.methods
-            .placeOrder(manipulatedBuyArgs)
-            .accounts({
-              signer: payer.publicKey,
-              asks: storedMarket.asks,
-              bids: storedMarket.bids,
-              marketVault: storedMarket.marketQuoteVault,
-              eventHeap: storedMarket.eventHeap,
-              market,
-              openOrdersAccount: oos[i],
-              userTokenAccount: usdcAccount,
-              twapMarket,
-              openbookProgram: OPENBOOK_PROGRAM_ID,
-            })
-            .rpc();
+    await cancelOrderByClientId(1);
+    await cancelOrderByClientId(2);
 
-          await openbookTwap.methods
-            .placeOrder(manipulatedSellArgs)
-            .accounts({
-              signer: payer.publicKey,
-              asks: storedMarket.asks,
-              bids: storedMarket.bids,
-              marketVault: storedMarket.marketBaseVault,
-              eventHeap: storedMarket.eventHeap,
-              market,
-              openOrdersAccount: oos[i],
-              userTokenAccount: metaAccount,
-              twapMarket,
-              openbookProgram: OPENBOOK_PROGRAM_ID,
-            })
-            .rpc();
+    await placeOrder({side: Side.Bid, priceLots: 10 * 10_000, clientOrderId: 1});
+    await placeOrder({side: Side.Ask, priceLots: 11 * 10_000, clientOrderId: 2});
 
-          let manipulatedMarket = await openbookTwap.account.twapMarket.fetch(
-            twapMarket
-          );
-          console.log(
-            "Manipulated observation: " +
-              idx +
-              " = " +
-              manipulatedMarket.twapOracle.lastObservation.toNumber()
-          );
-        } else {
-          await openbookTwap.methods
-            .placeOrder(buyArgs)
-            .accounts({
-              signer: payer.publicKey,
-              asks: storedMarket.asks,
-              bids: storedMarket.bids,
-              marketVault: storedMarket.marketQuoteVault,
-              eventHeap: storedMarket.eventHeap,
-              market,
-              openOrdersAccount: oos[i],
-              userTokenAccount: usdcAccount,
-              twapMarket,
-              openbookProgram: OPENBOOK_PROGRAM_ID,
-            })
-            .rpc();
+    await advanceSlots(1);
+    await crank();
 
-          await openbookTwap.methods
-            .placeOrder(sellArgs)
-            .accounts({
-              signer: payer.publicKey,
-              asks: storedMarket.asks,
-              bids: storedMarket.bids,
-              marketVault: storedMarket.marketBaseVault,
-              eventHeap: storedMarket.eventHeap,
-              market,
-              openOrdersAccount: oos[i],
-              userTokenAccount: metaAccount,
-              twapMarket,
-              openbookProgram: OPENBOOK_PROGRAM_ID,
-            })
-            .rpc();
+    storedTwapMarket = await openbookTwap.account.twapMarket.fetch(twapMarket);
+    assert(storedTwapMarket.twapOracle.lastObservation.eqn(51 * 10_000));
 
-          let healthyMarket = await openbookTwap.account.twapMarket.fetch(
-            twapMarket
-          );
-          console.log(
-            "Healthy sell observation: " +
-              idx +
-              " = " +
-              healthyMarket.twapOracle.lastObservation.toNumber()
-          );
-        }
-      }
-    }
+    await advanceSlots(1);
+    await crank();
 
-    await openbookTwap.methods
-      .placeTakeOrder(takeArgs)
-      .accounts({
-        signer: payer.publicKey,
-        market,
-        asks: storedMarket.asks,
-        bids: storedMarket.bids,
-        eventHeap: storedMarket.eventHeap,
-        marketAuthority: storedMarket.marketAuthority,
-        marketBaseVault: storedMarket.marketBaseVault,
-        marketQuoteVault: storedMarket.marketQuoteVault,
-        userQuoteAccount: usdcAccount,
-        userBaseAccount: metaAccount,
-        twapMarket,
-        openbookProgram: OPENBOOK_PROGRAM_ID,
-      })
-      .rpc();
+    storedTwapMarket = await openbookTwap.account.twapMarket.fetch(twapMarket);
+    assert(storedTwapMarket.twapOracle.lastObservation.eqn(50 * 10_000));
 
-    let storedTwapMarket2 = await openbookTwap.account.twapMarket.fetch(
-      twapMarket
-    );
-    console.log(
-      "Final oracle observation = " +
-        storedTwapMarket2.twapOracle.lastObservation.toNumber()
-    );
-
-    console.log("Jump ahead 11 days");
     let currentClock = await context.banksClient.getClock();
     let jumpAheadSlots = BigInt(elevenDaysInSeconds * 2.5);
     const newSlot = currentClock.slot + jumpAheadSlots;
