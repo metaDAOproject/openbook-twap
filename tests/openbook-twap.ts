@@ -54,6 +54,9 @@ const OpenbookTwapIDL: OpenbookTwap = require("../target/idl/openbook_twap.json"
 const META_AMOUNT = 100n * 1_000_000_000n;
 const USDC_AMOUNT = 1000n * 1_000_000n;
 
+const QUOTE_LOT_SIZE = 100; // quote in increments of hundredths of pennies
+const BASE_LOT_SIZE = 1_000_000_000; // increments of full META
+
 describe("openbook-twap", () => {
   let context,
     provider,
@@ -157,8 +160,8 @@ describe("openbook-twap", () => {
       "META/USDC",
       USDC,
       META,
-      new BN(100),
-      new BN(1e9),
+      new BN(QUOTE_LOT_SIZE),
+      new BN(BASE_LOT_SIZE),
       new BN(0),
       new BN(0),
       expiryTime,
