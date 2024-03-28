@@ -34,13 +34,20 @@ const OPENBOOK_TWAP_PROGRAM_ID = new PublicKey(
 
 const OpenbookTwapIDL: OpenbookTwap = require("../target/idl/openbook_twap.json");
 
-// export type OpenBookProgram = Program<OpenBookIDL>;
+const META_AMOUNT = 100;
+const USDC_AMOUNT = 1000;
 
-const META_AMOUNT = 100n * 1_000_000_000n;
-const USDC_AMOUNT = 1000n * 1_000_000n;
+const META_DECIMALS = 9;
+const USDC_DECIMALS = 6;
 
-const QUOTE_LOT_SIZE = 100; // quote in increments of hundredths of pennies
-const BASE_LOT_SIZE = 1_000_000_000; // increments of full META
+const MIN_QUOTE_AMOUNT = 0.0001; // hundredths of pennies
+const MIN_BASE_AMOUNT = 1; // 1 META
+
+const QUOTE_LOT_SIZE = MIN_QUOTE_AMOUNT * (10 ** USDC_DECIMALS);
+const BASE_LOT_SIZE = MIN_BASE_AMOUNT * (10 ** META_DECIMALS);
+
+const META_AMOUNT_SCALED = META_AMOUNT * (10 ** META_DECIMALS);
+const USDC_AMOUNT_SCALED = USDC_AMOUNT * (10 ** USDC_DECIMALS);
 
 describe("openbook-twap", () => {
   let context,
@@ -82,7 +89,7 @@ describe("openbook-twap", () => {
       payer,
       mintAuthority.publicKey,
       null,
-      9
+      META_DECIMALS
     );
 
     let USDC = await createMint(
@@ -90,7 +97,7 @@ describe("openbook-twap", () => {
       payer,
       mintAuthority.publicKey,
       null,
-      6
+      USDC_DECIMALS
     );
 
     let usdcAccount = await createAccount(
@@ -113,7 +120,7 @@ describe("openbook-twap", () => {
       META,
       metaAccount,
       mintAuthority,
-      META_AMOUNT * 50n
+      META_AMOUNT_SCALED * 50
     );
 
     await mintTo(
@@ -122,8 +129,9 @@ describe("openbook-twap", () => {
       USDC,
       usdcAccount,
       mintAuthority,
-      USDC_AMOUNT * 50n
+      USDC_AMOUNT_SCALED * 50
     );
+
 
     let marketKP = Keypair.generate();
     let market = marketKP.publicKey;
@@ -195,8 +203,8 @@ describe("openbook-twap", () => {
         storedMarket,
         metaAccount,
         usdcAccount,
-        new BN(META_AMOUNT),
-        new BN(USDC_AMOUNT)
+        new BN(META_AMOUNT_SCALED),
+        new BN(USDC_AMOUNT_SCALED)
       );
 
       console.log(`Deposited to oo${i}`);
