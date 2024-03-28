@@ -220,29 +220,25 @@ describe("openbook-twap", () => {
       };
 
       await openbookTwap.methods
-      .placeTakeOrder(crankArgs)
-      .accounts({
-        signer: payer.publicKey,
-        market,
-        asks: storedMarket.asks,
-        bids: storedMarket.bids,
-        eventHeap: storedMarket.eventHeap,
-        marketAuthority: storedMarket.marketAuthority,
-        marketBaseVault: storedMarket.marketBaseVault,
-        marketQuoteVault: storedMarket.marketQuoteVault,
-        userQuoteAccount: usdcAccount,
-        userBaseAccount: metaAccount,
-        twapMarket,
-        openbookProgram: OPENBOOK_PROGRAM_ID,
-      })
-      .rpc();
+        .placeTakeOrder(crankArgs)
+        .accounts({
+          signer: payer.publicKey,
+          market,
+          asks: storedMarket.asks,
+          bids: storedMarket.bids,
+          eventHeap: storedMarket.eventHeap,
+          marketAuthority: storedMarket.marketAuthority,
+          marketBaseVault: storedMarket.marketBaseVault,
+          marketQuoteVault: storedMarket.marketQuoteVault,
+          userQuoteAccount: usdcAccount,
+          userBaseAccount: metaAccount,
+          twapMarket,
+          openbookProgram: OPENBOOK_PROGRAM_ID,
+        })
+        .rpc();
     }
 
-    async function placeOrder({
-      side,
-      priceLots,
-      clientOrderId
-    }) {
+    async function placeOrder({ side, priceLots, clientOrderId }) {
       // Determine marketVault and userTokenAccount based on the side of the order
       let marketVault, userTokenAccount;
       if (side === Side.Bid) {
@@ -254,7 +250,7 @@ describe("openbook-twap", () => {
       } else {
         throw new Error("Invalid order side");
       }
-    
+
       await openbookTwap.methods
         .placeOrder({
           side: side,
@@ -283,16 +279,17 @@ describe("openbook-twap", () => {
     }
 
     async function cancelOrderByClientId(clientId: number) {
-      await openbookTwap.methods.cancelOrderByClientId(new BN(clientId))
-      .accounts({
-        twapMarket,
-        openOrdersAccount: oos[0],
-        market,
-        bids: storedMarket.bids,
-        asks: storedMarket.asks,
-        openbookProgram: OPENBOOK_PROGRAM_ID,
-      })
-      .rpc();
+      await openbookTwap.methods
+        .cancelOrderByClientId(new BN(clientId))
+        .accounts({
+          twapMarket,
+          openOrdersAccount: oos[0],
+          market,
+          bids: storedMarket.bids,
+          asks: storedMarket.asks,
+          openbookProgram: OPENBOOK_PROGRAM_ID,
+        })
+        .rpc();
     }
 
     async function advanceSlots(slots: number) {
@@ -306,11 +303,19 @@ describe("openbook-twap", () => {
           storedClock.unixTimestamp
         )
       );
-    };
+    }
 
     // first, place orders directly around the expected value ($50), expect that the last will equal that
-    await placeOrder({side: Side.Bid, priceLots: 49 * 10_000, clientOrderId: 1});
-    await placeOrder({side: Side.Ask, priceLots: 51 * 10_000, clientOrderId: 2});
+    await placeOrder({
+      side: Side.Bid,
+      priceLots: 49 * 10_000,
+      clientOrderId: 1,
+    });
+    await placeOrder({
+      side: Side.Ask,
+      priceLots: 51 * 10_000,
+      clientOrderId: 2,
+    });
 
     await advanceSlots(1);
     await crank();
@@ -318,7 +323,11 @@ describe("openbook-twap", () => {
     storedTwapMarket = await openbookTwap.account.twapMarket.fetch(twapMarket);
     assert(storedTwapMarket.twapOracle.lastObservation.eqn(50 * 10_000));
 
-    await placeOrder({side: Side.Ask, priceLots: 50 * 10_000, clientOrderId: 3});
+    await placeOrder({
+      side: Side.Ask,
+      priceLots: 50 * 10_000,
+      clientOrderId: 3,
+    });
 
     // pre-crank, it should still be the same
     storedTwapMarket = await openbookTwap.account.twapMarket.fetch(twapMarket);
@@ -344,18 +353,32 @@ describe("openbook-twap", () => {
     await cancelOrderByClientId(1);
     await cancelOrderByClientId(2);
 
-    await placeOrder({side: Side.Bid, priceLots: 100 * 10_000, clientOrderId: 1});
-    await placeOrder({side: Side.Ask, priceLots: 105 * 10_000, clientOrderId: 2});
+    await placeOrder({
+      side: Side.Bid,
+      priceLots: 100 * 10_000,
+      clientOrderId: 1,
+    });
+    await placeOrder({
+      side: Side.Ask,
+      priceLots: 105 * 10_000,
+      clientOrderId: 2,
+    });
 
     await advanceSlots(1);
     await crank();
-    
+
     storedTwapMarket = await openbookTwap.account.twapMarket.fetch(twapMarket);
     assert(storedTwapMarket.twapOracle.lastObservation.eqn(51 * 10_000));
 
     // 50 + 50 + 49.5 + 50 + 51 = 250.5
     // 250.5 / 5 = 50.1
-    let TWAP = storedTwapMarket.twapOracle.observationAggregator.div(storedTwapMarket.twapOracle.lastUpdatedSlot.sub(storedTwapMarket.twapOracle.initialSlot).addn(1)).toNumber()
+    let TWAP = storedTwapMarket.twapOracle.observationAggregator
+      .div(
+        storedTwapMarket.twapOracle.lastUpdatedSlot
+          .sub(storedTwapMarket.twapOracle.initialSlot)
+          .addn(1)
+      )
+      .toNumber();
     assert(TWAP / 10_000 == 50.1);
 
     await advanceSlots(1);
@@ -366,15 +389,29 @@ describe("openbook-twap", () => {
 
     // 50 + 50 + 49.5 + 50 + 51 + 52 = 302.5
     // 302.5 / 6 = 50.416666
-    TWAP = storedTwapMarket.twapOracle.observationAggregator.div(storedTwapMarket.twapOracle.lastUpdatedSlot.sub(storedTwapMarket.twapOracle.initialSlot).addn(1)).toNumber()
-    assert((TWAP / 10_000) > 50.416);
-    assert((TWAP / 10_000) < 50.417);
+    TWAP = storedTwapMarket.twapOracle.observationAggregator
+      .div(
+        storedTwapMarket.twapOracle.lastUpdatedSlot
+          .sub(storedTwapMarket.twapOracle.initialSlot)
+          .addn(1)
+      )
+      .toNumber();
+    assert(TWAP / 10_000 > 50.416);
+    assert(TWAP / 10_000 < 50.417);
 
     await cancelOrderByClientId(1);
     await cancelOrderByClientId(2);
 
-    await placeOrder({side: Side.Bid, priceLots: 10 * 10_000, clientOrderId: 1});
-    await placeOrder({side: Side.Ask, priceLots: 11 * 10_000, clientOrderId: 2});
+    await placeOrder({
+      side: Side.Bid,
+      priceLots: 10 * 10_000,
+      clientOrderId: 1,
+    });
+    await placeOrder({
+      side: Side.Ask,
+      priceLots: 11 * 10_000,
+      clientOrderId: 2,
+    });
 
     await advanceSlots(1);
     await crank();
