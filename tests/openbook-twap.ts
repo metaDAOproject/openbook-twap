@@ -6,7 +6,6 @@ import { OpenbookTwap } from "../target/types/openbook_twap";
 import {
   OpenBookV2Client,
   PlaceOrderArgs,
-  PlaceOrderPeggedArgs,
   Side,
   OrderType,
   SelfTradeBehavior,
@@ -14,7 +13,6 @@ import {
 } from "@openbook-dex/openbook-v2";
 
 import { expect, assert } from "chai";
-import { I80F48 } from "@blockworks-foundation/mango-client";
 
 const { PublicKey, Keypair, SystemProgram } = anchor.web3;
 const { BN } = anchor;
@@ -25,19 +23,6 @@ import {
   getAccount,
   mintTo,
 } from "spl-token-bankrun";
-
-// import { IDL, OpenbookV2 } from "./fixtures/openbook_v2";
-
-import {
-  // createMint,
-  // createAccount,
-  createAssociatedTokenAccount,
-  // mintTo,
-  // getAccount,
-  getMint,
-  TOKEN_PROGRAM_ID,
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-} from "@solana/spl-token";
 
 const OPENBOOK_PROGRAM_ID = new PublicKey(
   "opnb2LAfJYbRMAHHvqjCwQxanZn7ReEHp1k81EohpZb"
@@ -290,7 +275,6 @@ describe("openbook-twap", () => {
               market,
               openOrdersAccount: oos[i],
               userTokenAccount: usdcAccount,
-              tokenProgram: TOKEN_PROGRAM_ID,
               twapMarket,
               openbookProgram: OPENBOOK_PROGRAM_ID,
             })
@@ -307,7 +291,6 @@ describe("openbook-twap", () => {
               market,
               openOrdersAccount: oos[i],
               userTokenAccount: metaAccount,
-              tokenProgram: TOKEN_PROGRAM_ID,
               twapMarket,
               openbookProgram: OPENBOOK_PROGRAM_ID,
             })
@@ -334,7 +317,6 @@ describe("openbook-twap", () => {
               market,
               openOrdersAccount: oos[i],
               userTokenAccount: usdcAccount,
-              tokenProgram: TOKEN_PROGRAM_ID,
               twapMarket,
               openbookProgram: OPENBOOK_PROGRAM_ID,
             })
@@ -351,7 +333,6 @@ describe("openbook-twap", () => {
               market,
               openOrdersAccount: oos[i],
               userTokenAccount: metaAccount,
-              tokenProgram: TOKEN_PROGRAM_ID,
               twapMarket,
               openbookProgram: OPENBOOK_PROGRAM_ID,
             })
@@ -437,7 +418,6 @@ describe("openbook-twap", () => {
           marketQuoteVault: storedMarket.marketQuoteVault,
           userBaseAccount: metaAccount,
           userQuoteAccount: usdcAccount,
-          tokenProgram: TOKEN_PROGRAM_ID,
           openbookProgram: OPENBOOK_PROGRAM_ID,
         })
         .rpc();
@@ -458,7 +438,6 @@ describe("openbook-twap", () => {
           bids: storedMarket.bids,
           asks: storedMarket.asks,
           eventHeap: storedMarket.eventHeap,
-          tokenProgram: TOKEN_PROGRAM_ID,
           openbookProgram: OPENBOOK_PROGRAM_ID,
         })
         .rpc();
@@ -484,7 +463,6 @@ describe("openbook-twap", () => {
         bids: storedMarket.bids,
         asks: storedMarket.asks,
         eventHeap: storedMarket.eventHeap,
-        tokenProgram: TOKEN_PROGRAM_ID,
         openbookProgram: OPENBOOK_PROGRAM_ID,
       })
       .rpc();
