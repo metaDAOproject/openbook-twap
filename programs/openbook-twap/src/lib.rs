@@ -18,18 +18,16 @@ security_txt! {
     auditors: "None"
 }
 
-const ONE_HUNDRED_PERCENT_BPS: u16 = 10_000;
-/// TWAP observations can only increase by 1% per update
-const MAX_OBSERVATION_CHANGE_PER_UPDATE_BPS: u16 = 100;
 const TWAP_MARKET: &[u8] = b"twap_market";
 
-declare_id!("TWAPrdhADy2aTKN5iFZtNnkQYXERD9NvKjPFVPMSCNN");
+declare_id!("twAP5sArq2vDS1mZCT7f4qRLwzTfHvf5Ay5R5Q5df1m");
 
 #[account]
 pub struct TWAPMarket {
     pub market: Pubkey,
     pub pda_bump: u8,
     pub twap_oracle: TWAPOracle,
+    pub close_market_rent_receiver: Pubkey,
 }
 
 impl TWAPMarket {
@@ -50,14 +48,16 @@ pub struct TWAPOracle {
     pub last_observed_slot: u64,
     pub last_observation: u64,
     pub observation_aggregator: u128,
+    pub max_observation_change_per_update_lots: u64,
 }
 
 impl TWAPOracle {
-    pub fn new(expected_value: u64) -> Self {
-        // Get the current slot at TWAPOracle initialization - if this fails we'll load the default clock
-        // Since the default Clock.slot is 0 (because slots are expressed as u64)
-        // This will give us 0 as the slot which we had anyways
-        let clock = Clock::get().unwrap_or(Clock::default());
+    pub fn new(expected_value: u64, max_observation_change_per_update_lots: u64) -> Self {
+        // Get the current slot at TWAPOracle initialization
+        // If we cannot get the clock the transaction should fail. Unwise to catch the error.
+        // Starting with a time of 0 (initial solana blockchain slot) messes up later logic in unpredictable ways
+
+        let clock = Clock::get().unwrap();
         Self {
             expected_value,
             initial_slot: clock.slot,
@@ -65,6 +65,7 @@ impl TWAPOracle {
             last_observed_slot: clock.slot,
             last_observation: expected_value,
             observation_aggregator: expected_value as u128,
+            max_observation_change_per_update_lots,
         }
     }
 
@@ -92,21 +93,12 @@ impl TWAPOracle {
 
                 let observation = if spot_price > last_observation {
                     let max_observation = last_observation
-                        .saturating_mul(
-                            (ONE_HUNDRED_PERCENT_BPS + MAX_OBSERVATION_CHANGE_PER_UPDATE_BPS)
-                                as u64,
-                        )
-                        .saturating_div(ONE_HUNDRED_PERCENT_BPS as u64)
-                        .saturating_add(1);
+                        .saturating_add(self.max_observation_change_per_update_lots);
 
                     std::cmp::min(spot_price, max_observation)
                 } else {
                     let min_observation = last_observation
-                        .saturating_mul(
-                            (ONE_HUNDRED_PERCENT_BPS - MAX_OBSERVATION_CHANGE_PER_UPDATE_BPS)
-                                as u64,
-                        )
-                        .saturating_div(ONE_HUNDRED_PERCENT_BPS as u64);
+                        .saturating_sub(self.max_observation_change_per_update_lots);
 
                     std::cmp::max(spot_price, min_observation)
                 };
@@ -183,6 +175,70 @@ pub struct CancelOrder<'info> {
     pub bids: AccountLoader<'info, BookSide>,
     #[account(mut)]
     pub asks: AccountLoader<'info, BookSide>,
+    pub openbook_program: Program<'info, OpenbookV2>,
+}
+
+#[derive(Accounts)]
+pub struct PruneOrders<'info> {
+    pub twap_market: Account<'info, TWAPMarket>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub open_orders_account: UncheckedAccount<'info>,
+    pub market: AccountLoader<'info, Market>,
+    #[account(mut)]
+    pub bids: AccountLoader<'info, BookSide>,
+    #[account(mut)]
+    pub asks: AccountLoader<'info, BookSide>,
+    pub openbook_program: Program<'info, OpenbookV2>,
+}
+
+#[derive(Accounts)]
+pub struct SettleFundsExpired<'info> {
+    #[account(mut)]
+    pub twap_market: Account<'info, TWAPMarket>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub open_orders_account: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub market: AccountLoader<'info, Market>,
+    /// CHECK: verified in CPI
+    pub market_authority: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub market_base_vault: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub market_quote_vault: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub user_base_account: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub user_quote_account: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    pub token_program: UncheckedAccount<'info>,
+    pub openbook_program: Program<'info, OpenbookV2>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct CloseMarket<'info> {
+    /// CHECK: This is a permissionless function but could be made to require the close_market_rent_receiver's signature
+    #[account(mut)]
+    pub close_market_rent_receiver: UncheckedAccount<'info>,
+    #[account(has_one = close_market_rent_receiver)]
+    pub twap_market: Account<'info, TWAPMarket>,
+    #[account(mut)]
+    pub market: AccountLoader<'info, Market>,
+    #[account(mut)]
+    pub bids: AccountLoader<'info, BookSide>,
+    #[account(mut)]
+    pub asks: AccountLoader<'info, BookSide>,
+    /// CHECK: verified in CPI
+    #[account(mut)]
+    pub event_heap: UncheckedAccount<'info>,
+    /// CHECK: verified in CPI
+    pub token_program: UncheckedAccount<'info>,
     pub openbook_program: Program<'info, OpenbookV2>,
 }
 
@@ -377,11 +433,14 @@ pub mod openbook_twap {
 
     /// `expected_value` will be the first observation of the TWAP, which is
     /// necessary for anti-manipulation
-    pub fn create_twap_market(ctx: Context<CreateTWAPMarket>, expected_value: u64) -> Result<()> {
+    pub fn create_twap_market(
+        ctx: Context<CreateTWAPMarket>,
+        expected_value: u64,
+        max_observation_change_per_update_lots: u64,
+    ) -> Result<()> {
         let market = ctx.accounts.market.load()?;
         let twap_market = &mut ctx.accounts.twap_market;
 
-        require!(market.time_expiry == 0, OpenBookTWAPError::NonZeroExpiry);
         require!(
             market.open_orders_admin == twap_market.key(),
             OpenBookTWAPError::InvalidOpenOrdersAdmin
@@ -402,7 +461,9 @@ pub mod openbook_twap {
 
         twap_market.pda_bump = *ctx.bumps.get("twap_market").unwrap();
         twap_market.market = ctx.accounts.market.key();
-        twap_market.twap_oracle = TWAPOracle::new(expected_value);
+        twap_market.twap_oracle =
+            TWAPOracle::new(expected_value, max_observation_change_per_update_lots);
+        twap_market.close_market_rent_receiver = ctx.accounts.payer.key();
 
         Ok(())
     }
@@ -572,6 +633,88 @@ pub mod openbook_twap {
         Ok(())
     }
 
+    pub fn prune_orders(ctx: Context<PruneOrders>, limit: u8) -> Result<()> {
+        let market_key = ctx.accounts.market.key();
+
+        let seeds =
+            TWAPMarket::get_twap_market_seeds(&market_key, &ctx.accounts.twap_market.pda_bump);
+        let signer_seeds = &[&seeds[..]];
+
+        openbook_v2::cpi::prune_orders(
+            CpiContext::new_with_signer(
+                ctx.accounts.openbook_program.to_account_info(),
+                openbook_v2::cpi::accounts::PruneOrders {
+                    close_market_admin: ctx.accounts.twap_market.to_account_info(),
+                    open_orders_account: ctx.accounts.open_orders_account.to_account_info(),
+                    market: ctx.accounts.market.to_account_info(),
+                    bids: ctx.accounts.bids.to_account_info(),
+                    asks: ctx.accounts.asks.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            limit,
+        )?;
+
+        Ok(())
+    }
+
+    pub fn settle_funds_expired(ctx: Context<SettleFundsExpired>) -> Result<()> {
+        let market_key = ctx.accounts.market.key();
+
+        let seeds =
+            TWAPMarket::get_twap_market_seeds(&market_key, &ctx.accounts.twap_market.pda_bump);
+        let signer_seeds = &[&seeds[..]];
+
+        openbook_v2::cpi::settle_funds_expired(
+            CpiContext::new_with_signer(
+                ctx.accounts.openbook_program.to_account_info(),
+                openbook_v2::cpi::accounts::SettleFundsExpired {
+                    close_market_admin: ctx.accounts.twap_market.to_account_info(),
+                    owner: ctx.accounts.twap_market.to_account_info(), // Placeholder for the owner signer account
+                    penalty_payer: ctx.accounts.twap_market.to_account_info(), // Placeholder for the penalty payer signer account
+                    open_orders_account: ctx.accounts.open_orders_account.to_account_info(),
+                    market: ctx.accounts.market.to_account_info(),
+                    market_authority: ctx.accounts.market_authority.to_account_info(),
+                    market_base_vault: ctx.accounts.market_base_vault.to_account_info(),
+                    market_quote_vault: ctx.accounts.market_quote_vault.to_account_info(),
+                    user_base_account: ctx.accounts.user_base_account.to_account_info(),
+                    user_quote_account: ctx.accounts.user_quote_account.to_account_info(),
+                    referrer_account: None,
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                    system_program: ctx.accounts.system_program.to_account_info(),
+                },
+                signer_seeds,
+            ),
+        )?;
+
+        Ok(())
+    }
+
+    pub fn close_market<'info>(ctx: Context<CloseMarket>) -> Result<()> {
+        let market_key = ctx.accounts.market.key();
+
+        let seeds =
+            TWAPMarket::get_twap_market_seeds(&market_key, &ctx.accounts.twap_market.pda_bump);
+        let signer_seeds = &[&seeds[..]];
+
+        openbook_v2::cpi::close_market(
+            CpiContext::new_with_signer(
+                ctx.accounts.openbook_program.to_account_info(),
+                openbook_v2::cpi::accounts::CloseMarket {
+                    close_market_admin: ctx.accounts.twap_market.to_account_info(),
+                    market: ctx.accounts.market.to_account_info(),
+                    bids: ctx.accounts.bids.to_account_info(),
+                    asks: ctx.accounts.asks.to_account_info(),
+                    event_heap: ctx.accounts.event_heap.to_account_info(),
+                    sol_destination: ctx.accounts.close_market_rent_receiver.to_account_info(),
+                    token_program: ctx.accounts.token_program.to_account_info(),
+                },
+                signer_seeds,
+            )
+        )?;
+        Ok(())
+    }
+
     // Other endpoints
     // place_take_order
     // cancel_and_place_orders
@@ -697,8 +840,6 @@ pub enum OpenBookTWAPError {
         "The `close_market_admin` of the underlying market must be equal to the `TWAPMarket` PDA"
     )]
     InvalidCloseMarketAdmin,
-    #[msg("Market must not expire (have `time_expiry` == 0)")]
-    NonZeroExpiry,
     #[msg(
         "Oracle-pegged trades mess up the TWAP so oracles and oracle-pegged trades aren't allowed"
     )]
